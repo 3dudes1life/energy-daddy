@@ -1,0 +1,6 @@
+Energy Daddy 1.6 GitHub update
+
+Upload/replace these files in your existing repository.
+DO NOT upload node_modules, .wrangler, .dev.vars, or secret key files.
+
+If GitHub asks about replacing existing files, replace them with these versions.
