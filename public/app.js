@@ -295,7 +295,7 @@ function renderCloud(){
   ['KV current state',CloudBrain.health?.kv?'ready':'staged','Provider freshness + current state live here.'],
   ['Tesla live polling','disabled','$0 strategy: periodic historical evidence only unless you later decide paid Tesla telemetry is worth it.'],
   ['SolarEdge Array A','ready','Poll independently every 15 minutes once credentials are configured.'],
-  ['Enphase Array B + site meter','ready','Connect separately; never overwrite or double-count SolarEdge production.']
+  ['Enphase Array B + site meter','ready','OAuth bridge ready; hourly latest-telemetry polling stays within the free Watt-plan budget.']
  ];
  $('#cloudChecks').innerHTML=checks.map(([n,c,d])=>`<div class="quality"><b>${n}</b><span class="q ${c==='ready'||c==='safe'?'high':'partial'}">${c}</span><small>${d}</small></div>`).join('');
  const src=live?.sources||[];
@@ -308,6 +308,7 @@ function renderCloud(){
   ['emporia-ev','Emporia','Load attribution','EV export today · bridge later']
  ];
  $('#sourceRegistry').innerHTML=plan.map(([id,p,r,c])=>{const x=byId[id],st=x?.runtime?.status||x?.status||'planned';return `<div class="source-row"><div><b>${p}</b><small>${r}</small></div><span>${c}</span><em class="${st}">${st.replaceAll('_',' ')}</em></div>`}).join('');
+ const en=byId['enphase-site']; if($('#enphaseConnectBtn')){const connected=['connected','live'].includes(en?.runtime?.status)||['connected','live'].includes(en?.status);$('#enphaseConnectBtn').textContent=connected?'Reconnect Enphase':'Connect Enphase';if($('#enphaseConnectNote'))$('#enphaseConnectNote').textContent=connected?'Enphase authorized · hourly free-plan polling active':'Secure homeowner authorization · tokens stay in Cloudflare';}
  if($('#liveSourceStatus')) $('#liveSourceStatus').innerHTML=plan.map(([id,p,r])=>{const x=byId[id],rt=x?.runtime||{},st=rt.status||x?.status||'planned';const msg=rt.message||'No runtime status yet.';const detail=rt.last_seen_at?` · ${fmtAge(rt.last_seen_at)}`:'';return `<div class="live-provider"><div><b>${p}</b><small>${msg}${detail}</small></div><em class="${st}">${st.replaceAll('_',' ')}</em></div>`}).join('');
  const latest=live?.latest||[];
  if($('#cloudLatest')) $('#cloudLatest').innerHTML=latest.length?latest.slice(0,10).map(r=>`<div class="cloud-reading"><b>${r.source_id} · ${r.metric}</b><strong>${r.power_avg_w!=null?`${num(r.power_avg_w/1000,2)} kW`:`${num(r.energy_wh/1000,2)} kWh`}</strong><small>${fmtAge(r.interval_start)} · ${r.quality} · ${r.scope}</small></div>`).join(''):'<div class="muted">No cloud telemetry yet. This is correct until a live source or authenticated import writes data.</div>';
@@ -347,7 +348,7 @@ window.addEventListener('resize',()=>{if(DATA.bill){if($('#overview').classList.
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 load().catch(err=>{console.error(err);document.querySelector('.status.ok').textContent='● Data load error';document.querySelector('.status.ok').classList.add('warn')});
 
-// Build 1.7 Adaptive Browser Brain
+// Build 1.7.1 Adaptive Browser Brain
 (function adaptiveBrowserBrain(){
   const root=document.body;
   let lastBucket='';

@@ -7,14 +7,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Energy Daddy" />
-<title>Energy Daddy — Build 1.7 Daily Coach</title>
+<title>Energy Daddy — Build 1.7.1 Enphase Bridge</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div class="shell">
   <aside class="sidebar">
-    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.7 · DAILY COACH</span></div></div>
+    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.7.1 · ENPHASE BRIDGE</span></div></div>
     <nav>
       <button class="nav active" data-view="overview">◉ <span>Overview</span></button>
       <button class="nav" data-view="brain">✦ <span>Energy Brain</span></button>
@@ -177,7 +177,7 @@
       </div>
       <div class="grid two">
         <article class="card"><div class="card-head"><div><div class="eyebrow">CLOUD READINESS</div><h2>Stack health</h2></div><button id="testCloud">Test API</button></div><div id="cloudChecks" class="quality-list"></div></article>
-        <article class="card"><div class="card-head"><div><div class="eyebrow">SOURCE REGISTRY</div><h2>Live-feed plan</h2></div><span class="pill">secrets stay server-side</span></div><div id="sourceRegistry" class="source-registry"></div></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">SOURCE REGISTRY</div><h2>Live-feed plan</h2></div><span class="pill">secrets stay server-side</span></div><div id="sourceRegistry" class="source-registry"></div><div class="provider-connect"><a id="enphaseConnectBtn" class="upload-btn" href="/api/enphase/connect">Connect Enphase</a><small id="enphaseConnectNote">Secure homeowner authorization · tokens stay in Cloudflare</small></div></article>
       </div>
       <div class="grid two">
         <article class="card live-brain-card"><div class="card-head"><div><div class="eyebrow">LIVE SOURCE STATUS</div><h2>What is actually connected</h2></div><span class="status warn" id="livePollBadge">● waiting</span></div><div id="liveSourceStatus" class="live-source-status"></div></article>

@@ -1,6 +1,6 @@
 {
   "name": "energy-daddy",
-  "version": "1.6.0",
+  "version": "1.7.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,5 +11,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply ENERGY_DB --remote",
     "brain:test": "curl http://localhost:5051/api/live"
   },
-  "devDependencies": {"wrangler": "^4.0.0"}
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
 }

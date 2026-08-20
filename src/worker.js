@@ -25,7 +25,7 @@ async function health(env){
   let d1=false, kv=false;
   try{ await env.ENERGY_DB.prepare('SELECT 1 AS ok').first(); d1=true; }catch{}
   try{ await env.ENERGY_STATE.put('health:last', nowIso(), {expirationTtl:3600}); kv=true; }catch{}
-  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7', d1, kv, time:nowIso()};
+  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.1', d1, kv, time:nowIso()};
 }
 async function latest(env){
   const raw=await env.ENERGY_STATE.get('latest:site','json');
@@ -62,7 +62,7 @@ async function live(env){
   `).all()).results||[];
   const src=await sources(env);
   const cron=await env.ENERGY_STATE.get('cron:last');
-  return {ok:true,version:'1.7',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
+  return {ok:true,version:'1.7.1',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
 }
 async function events(env,url){
   const limit=Math.min(100,Math.max(1,Number(url.searchParams.get('limit')||20)));
@@ -97,6 +97,133 @@ async function providerRun(env,provider,status,points=0,message=''){
 }
 async function setProviderState(env,id,state){
   await env.ENERGY_STATE.put(`provider:${id}`,JSON.stringify({...state,updated_at:nowIso()}));
+}
+
+
+
+const ENPHASE_TOKEN_KEY='enphase:oauth';
+const ENPHASE_SYSTEM_KEY='enphase:system';
+const ENPHASE_LAST_POLL_KEY='enphase:last_poll';
+const ENPHASE_OAUTH_STATE_PREFIX='enphase:oauth_state:';
+const ENPHASE_REDIRECT='https://energy-daddy-api.energyplantdaddy.workers.dev/api/enphase/callback';
+
+function base64Basic(clientId,clientSecret){
+  return `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
+}
+function enphaseConfigured(env){
+  return Boolean((env.ENPHASE_API_KEY||'').trim()&&(env.ENPHASE_CLIENT_ID||'').trim()&&(env.ENPHASE_CLIENT_SECRET||'').trim());
+}
+async function getEnphaseToken(env){ return await env.ENERGY_STATE.get(ENPHASE_TOKEN_KEY,'json'); }
+async function storeEnphaseToken(env,token){
+  const now=Date.now();
+  const expiresIn=Math.max(60,Number(token.expires_in||86300));
+  const record={...token,obtained_at:new Date(now).toISOString(),expires_at:new Date(now+expiresIn*1000).toISOString()};
+  await env.ENERGY_STATE.put(ENPHASE_TOKEN_KEY,JSON.stringify(record));
+  return record;
+}
+async function exchangeEnphaseCode(env,code){
+  const q=new URLSearchParams({grant_type:'authorization_code',redirect_uri:ENPHASE_REDIRECT,code});
+  const res=await fetch(`https://api.enphaseenergy.com/oauth/token?${q.toString()}`,{method:'POST',headers:{Authorization:base64Basic(env.ENPHASE_CLIENT_ID,env.ENPHASE_CLIENT_SECRET),Accept:'application/json'}});
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok||!body.access_token) throw new Error(`Enphase token exchange failed (${res.status}): ${body.message||body.error||'unknown error'}`);
+  return storeEnphaseToken(env,body);
+}
+async function refreshEnphaseToken(env,token){
+  if(!token?.refresh_token) throw new Error('No Enphase refresh token is stored. Reconnect Enphase.');
+  const q=new URLSearchParams({grant_type:'refresh_token',refresh_token:token.refresh_token});
+  const res=await fetch(`https://api.enphaseenergy.com/oauth/token?${q.toString()}`,{method:'POST',headers:{Authorization:base64Basic(env.ENPHASE_CLIENT_ID,env.ENPHASE_CLIENT_SECRET),Accept:'application/json'}});
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok||!body.access_token) throw new Error(`Enphase token refresh failed (${res.status}): ${body.message||body.error||'unknown error'}`);
+  return storeEnphaseToken(env,body);
+}
+async function validEnphaseToken(env){
+  let token=await getEnphaseToken(env);
+  if(!token) return null;
+  const expiresAt=new Date(token.expires_at||0).getTime();
+  if(!expiresAt||expiresAt-Date.now()<10*60*1000) token=await refreshEnphaseToken(env,token);
+  return token;
+}
+async function enphaseFetch(env,path,token){
+  const sep=path.includes('?')?'&':'?';
+  const res=await fetch(`https://api.enphaseenergy.com${path}${sep}key=${encodeURIComponent(env.ENPHASE_API_KEY)}`,{headers:{Authorization:`Bearer ${token.access_token}`,Accept:'application/json'}});
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(`Enphase API ${res.status}: ${body.message||body.error||'request failed'}`);
+  return body;
+}
+async function discoverEnphaseSystem(env,token){
+  const body=await enphaseFetch(env,'/api/v4/systems',token);
+  const systems=body.systems||body.items||[];
+  if(!Array.isArray(systems)||!systems.length) throw new Error('Enphase authorized successfully, but no systems were returned.');
+  const chosen=systems[0];
+  const record={system_id:String(chosen.system_id),name:chosen.name||chosen.public_name||'Enphase System',timezone:chosen.timezone||null,status:chosen.status||null,system_count:systems.length,discovered_at:nowIso()};
+  await env.ENERGY_STATE.put(ENPHASE_SYSTEM_KEY,JSON.stringify(record));
+  await env.ENERGY_DB.prepare(`UPDATE sources SET status='connected',last_seen_at=? WHERE id='enphase-site'`).bind(nowIso()).run();
+  return record;
+}
+function findNumeric(obj, keys){
+  if(!obj||typeof obj!=='object') return null;
+  for(const k of keys){ if(Object.prototype.hasOwnProperty.call(obj,k)){const n=Number(obj[k]);if(Number.isFinite(n))return n;} }
+  for(const v of Object.values(obj)){ if(v&&typeof v==='object'){const n=findNumeric(v,keys);if(Number.isFinite(n))return n;} }
+  return null;
+}
+async function pollEnphase(env,{force=false}={}){
+  if(!enphaseConfigured(env)){
+    const state={status:'awaiting_credentials',live:false,message:'Enphase app credentials are not configured in Cloudflare.'};
+    await setProviderState(env,'enphase-site',state); return state;
+  }
+  let token;
+  try{ token=await validEnphaseToken(env); }catch(err){
+    const state={status:'auth_error',live:false,message:String(err?.message||err)};await setProviderState(env,'enphase-site',state);return state;
+  }
+  if(!token){ const state={status:'awaiting_authorization',live:false,message:'Credentials are loaded. Open /api/enphase/connect once to authorize this home.'};await setProviderState(env,'enphase-site',state);return state; }
+  let system=await env.ENERGY_STATE.get(ENPHASE_SYSTEM_KEY,'json');
+  try{
+    if(!system) system=await discoverEnphaseSystem(env,token);
+    const lastPoll=await env.ENERGY_STATE.get(ENPHASE_LAST_POLL_KEY);
+    if(!force&&lastPoll&&Date.now()-new Date(lastPoll).getTime()<55*60*1000){
+      const state={status:'connected',live:true,last_seen_at:lastPoll,system_id:system.system_id,message:'Enphase connected. Hourly polling is intentionally capped to protect the free 1,000-hit/month Watt plan.'};
+      await setProviderState(env,'enphase-site',state);return state;
+    }
+    const body=await enphaseFetch(env,`/api/v4/systems/${encodeURIComponent(system.system_id)}/latest_telemetry`,token);
+    const pv=findNumeric(body,['pv_power','production_power','production','pv','power_production']);
+    const consumption=findNumeric(body,['consumption_power','consumption','load_power','load']);
+    const captured=nowIso(); const pts=[];
+    if(Number.isFinite(pv)) pts.push({source_id:'enphase-site',metric:'solar_production',t:captured,energy_wh:pv*0.25,power_avg_w:pv,scope:'array_b',quality:'provider_latest',metadata:{provider:'Enphase',system_id:system.system_id,derivation:'latest PV power × 15 minutes; interval telemetry will backfill settlement-grade history'}});
+    if(Number.isFinite(consumption)) pts.push({source_id:'enphase-site',metric:'site_consumption',t:captured,energy_wh:consumption*0.25,power_avg_w:consumption,scope:'site_meter',quality:'provider_latest',metadata:{provider:'Enphase',system_id:system.system_id,topology_note:'Consumption is evidence from Enphase CTs and remains topology-qualified until reconciled against SDG&E/Tesla.'}});
+    const accepted=pts.length?await ingestPoints(pts,env):0;
+    await env.ENERGY_STATE.put(ENPHASE_LAST_POLL_KEY,captured);
+    await env.ENERGY_DB.prepare(`UPDATE sources SET status='live',last_seen_at=? WHERE id='enphase-site'`).bind(captured).run();
+    const state={status:'live',live:true,last_seen_at:captured,system_id:system.system_id,pv_power_w:Number.isFinite(pv)?pv:null,consumption_power_w:Number.isFinite(consumption)?consumption:null,points:accepted,message:accepted?'Enphase latest telemetry poll succeeded.':'Enphase responded, but expected PV/consumption power fields were not recognized; raw response shape needs mapping.'};
+    await env.ENERGY_STATE.put('enphase:last_raw',JSON.stringify({captured_at:captured,body}));
+    await setProviderState(env,'enphase-site',state);await providerRun(env,'Enphase',accepted?'ok':'mapping_needed',accepted,state.message);return state;
+  }catch(err){
+    const state={status:'error',live:false,message:String(err?.message||err)};await setProviderState(env,'enphase-site',state);await providerRun(env,'Enphase','error',0,state.message);await recordEvent(env,{type:'provider_error',severity:'warn',title:'Enphase poll failed',explanation:state.message,evidence:{provider:'Enphase'},status:'open'});return state;
+  }
+}
+async function enphaseStatus(env){
+  const token=await getEnphaseToken(env),system=await env.ENERGY_STATE.get(ENPHASE_SYSTEM_KEY,'json'),runtime=await env.ENERGY_STATE.get('provider:enphase-site','json');
+  return {configured:enphaseConfigured(env),authorized:Boolean(token?.refresh_token),token_expires_at:token?.expires_at||null,system:system||null,runtime:runtime||null,connect_url:'/api/enphase/connect'};
+}
+async function enphaseConnect(request,env){
+  if(!enphaseConfigured(env)) return json({error:'enphase_not_configured',message:'Set ENPHASE_API_KEY, ENPHASE_CLIENT_ID and ENPHASE_CLIENT_SECRET first.'},503);
+  const state=crypto.randomUUID(); await env.ENERGY_STATE.put(`${ENPHASE_OAUTH_STATE_PREFIX}${state}`,nowIso(),{expirationTtl:600});
+  const u=new URL('https://api.enphaseenergy.com/oauth/authorize');u.searchParams.set('response_type','code');u.searchParams.set('client_id',env.ENPHASE_CLIENT_ID);u.searchParams.set('redirect_uri',ENPHASE_REDIRECT);u.searchParams.set('state',state);
+  return Response.redirect(u.toString(),302);
+}
+async function enphaseCallback(request,env){
+  const u=new URL(request.url),err=u.searchParams.get('error');
+  if(err) return new Response(`<h1>Enphase connection cancelled</h1><p>${err}</p><p><a href="/">Back to Energy Daddy</a></p>`,{status:400,headers:{'content-type':'text/html; charset=utf-8'}});
+  const code=u.searchParams.get('code'),state=u.searchParams.get('state');
+  if(!code||!state) return new Response('<h1>Missing Enphase authorization code/state.</h1>',{status:400,headers:{'content-type':'text/html; charset=utf-8'}});
+  const stateKey=`${ENPHASE_OAUTH_STATE_PREFIX}${state}`,valid=await env.ENERGY_STATE.get(stateKey);if(!valid)return new Response('<h1>Enphase authorization state expired or invalid.</h1><p>Start the connection again from Energy Daddy.</p>',{status:400,headers:{'content-type':'text/html; charset=utf-8'}});await env.ENERGY_STATE.delete(stateKey);
+  try{
+    const token=await exchangeEnphaseCode(env,code);const system=await discoverEnphaseSystem(env,token);const poll=await pollEnphase(env,{force:true});
+    await recordEvent(env,{type:'provider_connected',severity:'info',title:'Enphase connected',explanation:`Energy Daddy authorized Enphase system ${system.name}.`,evidence:{provider:'Enphase',system_id:system.system_id},status:'closed'});
+    return Response.redirect('https://energy-daddy-api.energyplantdaddy.workers.dev/?enphase=connected',302);
+  }catch(e){
+    await setProviderState(env,'enphase-site',{status:'auth_error',live:false,message:String(e?.message||e)});
+    return new Response(`<h1>Enphase connection failed</h1><p>${String(e?.message||e)}</p><p><a href="/api/enphase/connect">Try again</a></p>`,{status:500,headers:{'content-type':'text/html; charset=utf-8'}});
+  }
 }
 
 async function pollSolarEdge(env){
@@ -134,11 +261,11 @@ async function runBrainCycle(env){
   const started=nowIso();
   await env.ENERGY_STATE.put('cron:last',started);
   const solar=await pollSolarEdge(env);
-  await setProviderState(env,'enphase-site',{status:'awaiting_credentials',live:false,message:'Enphase is Array B production plus site-meter evidence. Keep its production separate from SolarEdge Array A; site consumption/grid channels must be topology-validated before utility reconciliation.'});
+  const enphase=await pollEnphase(env);
   await setProviderState(env,'tesla-site',{status:'historical_only',live:false,message:'Tesla live polling intentionally disabled to avoid paid API use. Battery impact comes from periodic history imports.'});
   await setProviderState(env,'sdge-meter',{status:'reconciliation',live:false,message:'SDG&E is treated as delayed settlement/reconciliation evidence, not a real-time feed.'});
   await setProviderState(env,'emporia-ev',{status:'manual_or_bridge',live:false,message:'Emporia EV attribution is loaded from exports today; a local bridge can be added later without blocking SolarEdge live production.'});
-  return {ok:true,started_at:started,solaredge:solar};
+  return {ok:true,started_at:started,solaredge:solar,enphase};
 }
 
 async function api(request,env){
@@ -152,6 +279,10 @@ async function api(request,env){
     if(path==='/api/sources') return json(await sources(env),200,headers);
     if(path==='/api/history') return json(await history(env,url),200,headers);
     if(path==='/api/events') return json(await events(env,url),200,headers);
+    if(path==='/api/enphase/status') return json(await enphaseStatus(env),200,headers);
+    if(path==='/api/enphase/connect') return enphaseConnect(request,env);
+    if(path==='/api/enphase/callback') return enphaseCallback(request,env);
+    if(path==='/api/enphase/poll'&&request.method==='POST'){ if(!isAuthorized(request,env)) return json({error:'unauthorized'},401,headers); return json(await pollEnphase(env,{force:true}),200,headers); }
     if(path==='/api/ingest'&&request.method==='POST'){const r=await ingest(request,env);return json(r,r.status||200,headers)}
     if(path==='/api/event'&&request.method==='POST'){
       if(!isAuthorized(request,env)) return json({error:'unauthorized'},401,headers);
