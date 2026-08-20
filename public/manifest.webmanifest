@@ -1,7 +1,9 @@
 {
-  "name": "Energy Daddy Build 1.1",
+  "name": "Energy Daddy by DCW Grows",
   "short_name": "Energy Daddy",
+  "description": "Home energy intelligence that learns, explains and recommends.",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#09090b",
   "theme_color": "#09090b",

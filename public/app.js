@@ -52,7 +52,7 @@ function render(){
  $('#account-balance').textContent=money(b.trueup.account_balance); $('#trueup-date').textContent=new Date(b.true_up+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
  $('#daysLeft').textContent=`${m.daysLeft} days left`; $('#trendPill').textContent=m.avgDelta<0?`NEM trend ${money(m.avgDelta)}/month`:`NEM trend +${money(m.avgDelta)}/month`;
  $('#nem-balance').textContent=money(b.trueup.nem_balance); $('#nonenergy-balance').textContent=money(m.nonEnergy); $('#nemForecast').textContent=money(m.nemForecast); $('#month-charge').textContent=money(b.current_period.current_charges);
- $('#confidence').textContent='88%';
+ $('#confidence').textContent=`${learningProfile().confidence}%`;
  $('#t-solar').textContent=`${num(m.solar)} kWh`; $('#t-home').textContent=`${num(m.home)} kWh`; $('#t-import').textContent=`${num(m.gridImport)} kWh`; $('#t-export').textContent=`${num(m.gridExport)} kWh`;
  $('#tesla-range').textContent=`through ${new Date(t.range.end).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
  $('#solarCoverage').textContent=`${num(m.solarCoverage,0)}%`; $('#gridIndependence').textContent=`${num(m.gridIndependence,0)}%`; $('#batterySwing').textContent=`${num(m.batteryCharge+m.batteryDischarge)} kWh`;
@@ -61,9 +61,34 @@ function render(){
  $('#gridBehaviorText').textContent=m.gridExport>m.gridImport?`The supplied Tesla day is a net-export day by about ${num(m.gridExport-m.gridImport)} kWh through the end of the export.`:`The supplied Tesla day is a net-import day by about ${num(m.gridImport-m.gridExport)} kWh through the end of the export.`;
  $('#evJuly').textContent=num(e.summary.july_kwh,1); $('#sdgePeak').textContent=`${num(b.current_period.highest_demand_kw,1)} kW`; $('#evPeak').textContent=`${num(e.summary.july18_midnight_kwh,2)} kWh`;
  $('#evShare').style.width=Math.min(100,m.peakShare)+'%'; $('#evExplainer').textContent=`The EV charger explains about ${num(m.peakShare,0)}% of SDG&E's 14.4 kW highest-use hour. The remaining ~${num(b.current_period.highest_demand_kw-e.summary.july18_midnight_kwh,1)} kW came from other loads.`;
- renderBrain(); renderLiveBrain(); renderLab(); drawNem(); drawTesla(); drawEv(); renderTou(); renderAudit(); renderInsights(); renderConnections(); renderEvTou(); renderCloud();
+ renderBrain(); renderLearningCore(); renderLiveBrain(); renderLab(); drawNem(); drawTesla(); drawEv(); renderTou(); renderAudit(); renderInsights(); renderConnections(); renderEvTou(); renderCloud();
  const winterPeak=Math.max(...b.months.map(x=>x.balance));
  $('#topInsight').innerHTML=`<h3>✦ Smart finding: this is a winter debt problem, not a broken-solar-looking summer.</h3><p>The NEM energy balance peaked at <b>${money(winterPeak)}</b> in March. Recent months have generally pushed it down. On the supplied Tesla day, solar generated <b>${num(m.solar)} kWh</b> against <b>${num(m.home)} kWh</b> of home use and the site exported more energy than it imported.</p>`;
+}
+function learningProfile(){
+ const m=METRICS,b=DATA.bill,e=DATA.emporia;
+ const models=[
+  {id:'tou',name:'Rate timing',state:'confident',confidence:94,evidence:`EV behavior is ${num(m.evPreferredPct,0)}% super-off-peak and this bill exported during 4–9 PM.`},
+  {id:'trueup',name:'True-up behavior',state:'confident',confidence:91,evidence:`${b.months.length} billing periods show winter accumulation followed by spring/summer recovery.`},
+  {id:'ev',name:'EV load signature',state:'confident',confidence:96,evidence:`Emporia explains about ${num(m.peakShare,0)}% of the July 18 highest-use hour.`},
+  {id:'battery',name:'Battery impact',state:'learning',confidence:68,evidence:`Tesla history shows charge/discharge behavior, but live polling is intentionally disabled.`},
+  {id:'solar',name:'Dual-solar behavior',state:'observing',confidence:46,evidence:'SolarEdge Array A and Enphase Array B are mapped separately; aligned live history is not connected yet.'},
+  {id:'wholehome',name:'Whole-home demand',state:'observing',confidence:38,evidence:'EV attribution exists, but full mains/circuit history is still missing.'}
+ ];
+ const confidence=Math.round(models.reduce((a,x)=>a+x.confidence,0)/models.length);
+ const confident=models.filter(x=>x.state==='confident').length;
+ const stage=confident>=4?'CONFIDENT':confident>=2?'LEARNING':'OBSERVING';
+ return {models,confidence,stage};
+}
+function renderLearningCore(){
+ if(!$('#learningModels'))return; const p=learningProfile(),m=METRICS,b=DATA.bill;
+ $('#learningStage').textContent=p.stage; $('#learningConfidence').textContent=`${p.confidence}%`; $('#modelCount').textContent=p.models.length; $('#smartMode').textContent='DATA';
+ $('#learningSummary').textContent=p.stage==='LEARNING'?`Energy Daddy already has ${p.models.filter(x=>x.state==='confident').length} confident household behaviors. Live solar/site history will turn the remaining observations into personalized timing recommendations.`:'Energy Daddy is building explainable household behavior models.';
+ $('#learningModels').innerHTML=p.models.map(x=>`<div class="learning-model ${x.state}"><div><b>${x.name}</b><small>${x.evidence}</small></div><div class="model-score"><strong>${x.confidence}%</strong><em>${x.state}</em></div></div>`).join('');
+ let title='Protect the expensive window',text=`Until live solar forecasting is connected, keep flexible grid-heavy loads out of 4–9 PM when practical. Your EV history already shows strong cheap-window behavior.`,why=`Evidence: this bill is net-exporting during on-peak, while the identified 14.4 kW demand event happened around midnight. This is a safe recommendation from your rate + measured history, not an AI guess.`;
+ if(m.evPreferredPct<70){title='Move more EV energy to the preferred window';text=`Only ${num(m.evPreferredPct,0)}% of observed EV charging landed in super-off-peak.`}
+ $('#nextActionTitle').textContent=title;$('#nextActionText').textContent=text;$('#nextActionWhy').innerHTML=`<b>Why?</b><span>${why}</span>`;
+ $('#brainStatus').textContent=`● ${p.stage.toLowerCase()}`;
 }
 function renderBrain(){const {bill:b,solaredge:s}=DATA,m=METRICS;
  $('#pressureScore').textContent=`${m.pressure}/100`; $('#pressureText').textContent=`Current account balance is ${money(b.trueup.account_balance)} with ${m.daysLeft} days until true-up. Energy-only trajectory is improving, but non-energy buckets already total ${money(m.nonEnergy)}.`;
@@ -209,6 +234,8 @@ function renderCloud(){
  $('#cloudMode').textContent=isCloud?'CLOUD':'LOCAL';
  $('#cloudModeText').textContent=isCloud?'Cloudflare Worker + D1 + KV responded. Live Brain will only call providers that have approved server-side credentials.':'Bundled/local evidence is active. On localhost:5050 Energy Daddy will look for the Worker on localhost:5051.';
  $('#cloudModeBadge').textContent=isCloud?'● cloud API healthy':'● local-first';
+ if($('#mobileCloudDot')){$('#mobileCloudDot').textContent=isCloud?'●':'○';$('#mobileCloudDot').className=isCloud?'cloud-ok':'cloud-local'}
+ if($('#mobileWatchText'))$('#mobileWatchText').textContent=isCloud?`Cloud brain online · ${live?.cron_last?`last heartbeat ${fmtAge(live.cron_last)}`:'heartbeat pending'}`:'Local evidence mode';
  $('#syncQueue').textContent=CloudBrain.queue;$('#memoryCount').textContent=CloudBrain.memory;
  const checks=[
   ['Frontend','ready','Static app is deployed with the Worker and remains locally runnable on 5050.'],
@@ -244,8 +271,25 @@ function renderCloud(){
  ];
  $('#eventBrainPreview').innerHTML=events.map(([p,t,d])=>`<div class="action"><span>${p}</span><div><b>${t}</b><p>${d}</p></div></div>`).join('');
 }
-$$('.nav').forEach(b=>b.onclick=()=>{$$('.nav,.view').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.view).classList.add('active');$('#page-title').textContent=b.querySelector('span').textContent;setTimeout(()=>{if(b.dataset.view==='overview'){drawNem();drawTesla()}if(b.dataset.view==='audit')drawDonut();if(b.dataset.view==='flows')drawEv()},10)});
+function openView(view){
+ $$('.nav,.view').forEach(x=>x.classList.remove('active'));
+ const target=$(`#${view}`); if(target)target.classList.add('active');
+ const nav=$(`.nav[data-view="${view}"]`); if(nav)nav.classList.add('active');
+ const names={overview:'Overview',brain:'Smart Core',audit:'Bill Audit',lab:'What-If Lab',flows:'Energy Flow',connections:'Connections',cloud:'Live Brain'};
+ $('#page-title').textContent=names[view]||'Energy Daddy';
+ closeMobileSheet(); window.scrollTo({top:0,behavior:'smooth'});
+ setTimeout(()=>{if(view==='overview'){drawNem();drawTesla()}if(view==='audit')drawDonut();if(view==='flows')drawEv()},10)
+}
+$$('.nav[data-view]').forEach(b=>b.onclick=()=>openView(b.dataset.view));
+function openMobileSheet(){const s=$('#mobileSheet'),b=$('#mobileSheetBackdrop');if(!s)return;s.classList.add('open');b.classList.add('open');s.setAttribute('aria-hidden','false')}
+function closeMobileSheet(){const s=$('#mobileSheet'),b=$('#mobileSheetBackdrop');if(!s)return;s.classList.remove('open');b.classList.remove('open');s.setAttribute('aria-hidden','true')}
+const more=$('.mobile-more-btn');if(more)more.onclick=openMobileSheet;
+if($('#closeMobileSheet'))$('#closeMobileSheet').onclick=closeMobileSheet;if($('#mobileSheetBackdrop'))$('#mobileSheetBackdrop').onclick=closeMobileSheet;
+$$('[data-mobile-view]').forEach(b=>b.onclick=()=>openView(b.dataset.mobileView));
+if($('#showInstallHelp'))$('#showInstallHelp').onclick=()=>{openMobileSheet();setTimeout(()=>$('#installHelp')?.scrollIntoView({behavior:'smooth',block:'center'}),150)};
+
 $('#refresh').onclick=()=>load(); if($('#testCloud'))$('#testCloud').onclick=()=>probeCloud(); setInterval(()=>{if(document.visibilityState==='visible')probeCloud()},60000);
 $('#csvUpload').addEventListener('change',async ev=>{const f=ev.target.files[0];if(!f)return;const text=await f.text(),lines=text.trim().split(/\r?\n/),headers=(lines[0]||'').split(',');const rows=lines.slice(1,Math.min(lines.length,501)).map(l=>l.split(','));const numeric=headers.map((h,i)=>{const vals=rows.map(r=>Number(r[i])).filter(Number.isFinite);return vals.length>Math.max(3,rows.length*.7)?`${h}: numeric (${vals.length} sampled)`:null}).filter(Boolean);let dates=[];rows.forEach(r=>r.forEach(v=>{const d=new Date(v);if(v&&/[-/:T]/.test(v)&&!isNaN(d))dates.push(d)}));dates.sort((a,b)=>a-b);const id=`${f.name}:${f.size}:${f.lastModified}`;await saveLocalImport({id,filename:f.name,size:f.size,row_count:Math.max(0,lines.length-1),headers,range_start:dates[0]?.toISOString()||null,range_end:dates.at(-1)?.toISOString()||null,imported_at:new Date().toISOString()});$('#uploadResult').textContent=`${f.name}\n${lines.length-1} data rows\n${headers.length} columns\nColumns: ${headers.join(' · ')}\n${dates.length?`Time coverage sampled: ${dates[0].toLocaleString()} → ${dates.at(-1).toLocaleString()}\n`:''}${numeric.length?`Likely numeric fields:\n- ${numeric.join('\n- ')}\n`:''}\nSaved to local Energy Daddy memory and staged for future cloud sync. File contents were not uploaded.`});
 window.addEventListener('resize',()=>{if(DATA.bill){if($('#overview').classList.contains('active')){drawNem();drawTesla()}if($('#audit').classList.contains('active'))drawDonut();if($('#flows').classList.contains('active'))drawEv()}});
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 load().catch(err=>{console.error(err);document.querySelector('.status.ok').textContent='● Data load error';document.querySelector('.status.ok').classList.add('warn')});

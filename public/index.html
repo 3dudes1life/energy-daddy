@@ -4,14 +4,17 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0a0a0b" />
-<title>Energy Daddy — Build 1.5.1</title>
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Energy Daddy" />
+<title>Energy Daddy — Build 1.6 Smart Core</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div class="shell">
   <aside class="sidebar">
-    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.5 · LIVE BRAIN</span></div></div>
+    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.6 · SMART CORE</span></div></div>
     <nav>
       <button class="nav active" data-view="overview">◉ <span>Overview</span></button>
       <button class="nav" data-view="brain">✦ <span>Energy Brain</span></button>
@@ -20,11 +23,13 @@
       <button class="nav" data-view="flows">↔ <span>Energy Flow</span></button>
       <button class="nav" data-view="connections">⌁ <span>Connections</span></button>
       <button class="nav" data-view="cloud">☁ <span>Live Brain</span></button>
+      <button class="nav mobile-more-btn" type="button">••• <span>More</span></button>
     </nav>
     <div class="privacy">🔒 Local-first + Cloudflare-ready. Energy Daddy stays on 5050 locally; Plant Daddy’s 8000-series remains reserved.</div>
   </aside>
 
   <main>
+    <div class="mobile-brandbar"><div class="mobile-brandmark">⚡</div><div><b>Energy Daddy</b><small>by DCW Grows · Smart Core</small></div><span id="mobileCloudDot">●</span></div>
     <header>
       <div><div class="eyebrow">HOME ENERGY INTELLIGENCE</div><h1 id="page-title">Overview</h1></div>
       <div class="header-actions"><span class="status ok">● Brain online</span><button id="refresh">Re-run analysis</button></div>
@@ -35,6 +40,10 @@
         <div><div class="eyebrow">TRUE-UP WATCH</div><div class="hero-money" id="account-balance">$—</div><div class="muted">Current accumulated SDG&E account balance · settles <b id="trueup-date">—</b></div><div class="hero-tags"><span id="daysLeft" class="pill">— days left</span><span id="trendPill" class="pill">—</span></div></div>
         <div class="hero-right"><div class="score-ring"><span id="confidence">—</span><small>data confidence</small></div></div>
       </div>
+      <article class="card mobile-watch-card">
+        <div><div class="eyebrow">POCKET WATCH</div><b>Energy Daddy is running in Cloudflare</b><small id="mobileWatchText">Checking cloud brain…</small></div>
+        <button type="button" id="showInstallHelp">Add to phone</button>
+      </article>
       <div class="kpis four">
         <article class="card kpi"><span>NEM energy</span><strong id="nem-balance">—</strong><small>running energy balance</small></article>
         <article class="card kpi"><span>Non-energy buckets</span><strong id="nonenergy-balance">—</strong><small>NBC + other meter</small></article>
@@ -58,7 +67,15 @@
     </section>
 
     <section id="brain" class="view">
-      <div class="section-title"><div><div class="eyebrow">ENERGY BRAIN</div><h2>Priorities, forecasts & anomalies</h2></div><span class="status warn" id="brainStatus">● watching</span></div>
+      <div class="section-title"><div><div class="eyebrow">SMART CORE</div><h2>Learning your house without needing AI</h2><p class="muted">Observe → learn → gain confidence → recommend. Every conclusion stays tied to evidence.</p></div><span class="status warn" id="brainStatus">● learning</span></div>
+      <div class="smart-core-hero card">
+        <div><div class="eyebrow">LEARNING STATE</div><strong id="learningStage">LEARNING</strong><p id="learningSummary">Building household behavior models from loaded evidence.</p></div>
+        <div class="smart-core-stats"><div><span>Confidence</span><b id="learningConfidence">—</b></div><div><span>Models</span><b id="modelCount">—</b></div><div><span>Mode</span><b id="smartMode">DATA</b></div></div>
+      </div>
+      <div class="grid two smart-core-grid">
+        <article class="card"><div class="card-head"><div><div class="eyebrow">HOUSE MODELS</div><h2>What Energy Daddy has learned</h2></div><span class="pill">explainable</span></div><div id="learningModels" class="learning-models"></div></article>
+        <article class="card next-action"><div class="eyebrow">NEXT BEST MOVE</div><h2 id="nextActionTitle">Keep learning</h2><p id="nextActionText" class="note"></p><div id="nextActionWhy" class="why-box"></div></article>
+      </div>
       <div class="grid three">
         <article class="card brain-score"><div class="eyebrow">TRUE-UP PRESSURE</div><strong id="pressureScore">—</strong><p id="pressureText"></p></article>
         <article class="card brain-score"><div class="eyebrow">RATE TIMING</div><strong id="timingScore">—</strong><p id="timingText"></p></article>
@@ -128,13 +145,13 @@
     </section>
 
     <section id="connections" class="view">
-      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.5.1 connections</h2></div></div>
+      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.6 connections</h2></div></div>
       <div id="connectionsList" class="connections"></div>
-      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.5.1 will profile it locally, remember the import in IndexedDB, and stage it for future cloud sync.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
+      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.6 will profile it locally, remember the import in IndexedDB, and stage it for future cloud sync.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
     </section>
 
     <section id="cloud" class="view">
-      <div class="section-title"><div><div class="eyebrow">LIVE BRAIN CONTROL PLANE</div><h2>Cloud connected · providers stay evidence-aware</h2><p class="muted">Build 1.5.1 uses the deployed Cloudflare brain when available, keeps secrets server-side, and falls back to bundled/local evidence when a provider is not connected.</p></div><span class="status ok" id="cloudModeBadge">● local-first</span></div>
+      <div class="section-title"><div><div class="eyebrow">LIVE BRAIN CONTROL PLANE</div><h2>Cloud connected · providers stay evidence-aware</h2><p class="muted">Build 1.6 uses the deployed Cloudflare brain when available, keeps secrets server-side, and falls back to bundled/local evidence when a provider is not connected.</p></div><span class="status ok" id="cloudModeBadge">● local-first</span></div>
       <div class="grid three">
         <article class="card brain-score"><div class="eyebrow">API MODE</div><strong id="cloudMode">LOCAL</strong><p id="cloudModeText">Using bundled evidence. Cloud API will be auto-detected when available.</p></article>
         <article class="card brain-score"><div class="eyebrow">SYNC QUEUE</div><strong id="syncQueue">0</strong><p>Local imports waiting to be normalized or synced later.</p></article>
@@ -157,5 +174,16 @@
   </main>
 </div>
 <script src="app.js"></script>
+
+<div class="mobile-sheet-backdrop" id="mobileSheetBackdrop"></div>
+<div class="mobile-sheet" id="mobileSheet" aria-hidden="true">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head"><div><div class="eyebrow">ENERGY DADDY</div><h2>More</h2></div><button id="closeMobileSheet" type="button">Done</button></div>
+  <button class="sheet-link" data-mobile-view="lab"><span>⌘</span><div><b>What-If Lab</b><small>Test changes before you make them</small></div></button>
+  <button class="sheet-link" data-mobile-view="flows"><span>↔</span><div><b>Energy Flow</b><small>See where power moved</small></div></button>
+  <button class="sheet-link" data-mobile-view="connections"><span>⌁</span><div><b>Connections</b><small>Providers, imports and evidence</small></div></button>
+  <div class="install-help" id="installHelp"><b>Put Energy Daddy on your iPhone</b><small>Open this site in Safari → Share → Add to Home Screen. It will launch like an app while Cloudflare keeps the brain running.</small></div>
+</div>
+
 </body>
 </html>
