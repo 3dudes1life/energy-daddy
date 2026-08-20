@@ -1,17 +1,7 @@
-# Energy Daddy — Build 1.3
+# Build 1.4
 
-Smarter local-only brain. No Cloudflare/API setup required.
+Cloudflare-ready architecture pass.
 
-## Added
-- Redesigned Bill Audit with current-month vs accumulated-balance separation
-- Balance anatomy stack + bucket percentages
-- Month-by-month NEM ledger and balance deltas
-- Evidence Board: explained / partial / missing
-- EV-TOU-5 charger timing analysis across the supplied Emporia history
-- On-peak Tesla behavior metrics and observed solar-dominance metric
-- Local CSV import history retained in browser localStorage
-- Removed utility-system-size mismatch warnings from customer-facing intelligence
-- Source-scope guard: Tesla and SolarEdge remain separate until measurement scope is known
+The frontend remains local-first and functional without Cloudflare. A Cloud Brain view now reports whether the same-origin `/api` exists, remembers local imports in IndexedDB, and exposes the intended source/normalization model. The backend scaffold includes Worker static assets + API routing, D1 migrations, KV latest-state caching, authenticated ingestion, history/source endpoints, and a 15-minute cron heartbeat.
 
-## Port
-Energy Daddy remains on 5050. Plant Daddy 8000-series ports are reserved.
+No Cloudflare resources or external provider credentials were created or connected in this build.

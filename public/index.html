@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0a0a0b" />
+<title>Energy Daddy — Build 1.4</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.4 · CLOUD READY</span></div></div>
+    <nav>
+      <button class="nav active" data-view="overview">◉ <span>Overview</span></button>
+      <button class="nav" data-view="brain">✦ <span>Energy Brain</span></button>
+      <button class="nav" data-view="audit">◎ <span>Bill Audit</span></button>
+      <button class="nav" data-view="lab">⌘ <span>What-If Lab</span></button>
+      <button class="nav" data-view="flows">↔ <span>Energy Flow</span></button>
+      <button class="nav" data-view="connections">⌁ <span>Connections</span></button>
+      <button class="nav" data-view="cloud">☁ <span>Cloud Brain</span></button>
+    </nav>
+    <div class="privacy">🔒 Local-first + Cloudflare-ready. Energy Daddy stays on 5050 locally; Plant Daddy’s 8000-series remains reserved.</div>
+  </aside>
+
+  <main>
+    <header>
+      <div><div class="eyebrow">HOME ENERGY INTELLIGENCE</div><h1 id="page-title">Overview</h1></div>
+      <div class="header-actions"><span class="status ok">● Brain online</span><button id="refresh">Re-run analysis</button></div>
+    </header>
+
+    <section id="overview" class="view active">
+      <div class="hero card">
+        <div><div class="eyebrow">TRUE-UP WATCH</div><div class="hero-money" id="account-balance">$—</div><div class="muted">Current accumulated SDG&E account balance · settles <b id="trueup-date">—</b></div><div class="hero-tags"><span id="daysLeft" class="pill">— days left</span><span id="trendPill" class="pill">—</span></div></div>
+        <div class="hero-right"><div class="score-ring"><span id="confidence">—</span><small>data confidence</small></div></div>
+      </div>
+      <div class="kpis four">
+        <article class="card kpi"><span>NEM energy</span><strong id="nem-balance">—</strong><small>running energy balance</small></article>
+        <article class="card kpi"><span>Non-energy buckets</span><strong id="nonenergy-balance">—</strong><small>NBC + other meter</small></article>
+        <article class="card kpi"><span>NEM trajectory</span><strong id="nemForecast">—</strong><small>simple recent-trend estimate</small></article>
+        <article class="card kpi"><span>Current month</span><strong id="month-charge">—</strong><small>after credits</small></article>
+      </div>
+      <div class="grid two">
+        <article class="card"><div class="card-head"><div><div class="eyebrow">NEM HISTORY</div><h2>What built the true-up</h2></div><span class="pill">Nov → Aug</span></div><canvas id="nemChart" height="220"></canvas><div class="chart-legend"><span>● Net kWh</span><span>— Running $ balance</span></div></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">TESLA SITE SNAPSHOT</div><h2>What the house did today</h2></div><span class="pill" id="tesla-range">—</span></div><div class="flow-kpis"><div><span>Solar</span><strong id="t-solar">—</strong></div><div><span>Home</span><strong id="t-home">—</strong></div><div><span>Grid import</span><strong id="t-import">—</strong></div><div><span>Grid export</span><strong id="t-export">—</strong></div></div><canvas id="teslaChart" height="170"></canvas></article>
+      </div>
+      <div class="grid three smart-strip">
+        <article class="card smart-kpi"><span>Solar coverage</span><strong id="solarCoverage">—</strong><small>solar generated ÷ home use</small></article>
+        <article class="card smart-kpi"><span>Grid independence</span><strong id="gridIndependence">—</strong><small>share of home demand not imported</small></article>
+        <article class="card smart-kpi"><span>Battery swing</span><strong id="batterySwing">—</strong><small>charge + discharge observed today</small></article>
+      </div>
+      <div class="grid two">
+        <article class="card live-card"><div class="card-head"><div><div class="eyebrow">LATEST TELEMETRY</div><h2>What the house was doing</h2></div><span class="status ok" id="telemetryAge">● loaded</span></div><div class="live-grid"><div><span>Home</span><strong id="liveHome">—</strong></div><div><span>Solar</span><strong id="liveSolar">—</strong></div><div><span>Battery</span><strong id="liveBattery">—</strong></div><div><span>Grid</span><strong id="liveGrid">—</strong></div><div><span>Powerwall</span><strong id="liveSoc">—</strong></div><div><span>TOU state</span><strong id="liveTou">—</strong></div></div><p class="note" id="liveNarrative"></p></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">DADDY'S DAILY BRIEF</div><h2>Three things that matter</h2></div><span class="pill">auto-ranked</span></div><div id="dailyBrief" class="brief-list"></div></article>
+      </div>
+      <article class="card alert-card" id="topInsight"></article>
+    </section>
+
+    <section id="brain" class="view">
+      <div class="section-title"><div><div class="eyebrow">ENERGY BRAIN</div><h2>Priorities, forecasts & anomalies</h2></div><span class="status warn" id="brainStatus">● watching</span></div>
+      <div class="grid three">
+        <article class="card brain-score"><div class="eyebrow">TRUE-UP PRESSURE</div><strong id="pressureScore">—</strong><p id="pressureText"></p></article>
+        <article class="card brain-score"><div class="eyebrow">RATE TIMING</div><strong id="timingScore">—</strong><p id="timingText"></p></article>
+        <article class="card brain-score"><div class="eyebrow">METER AGREEMENT</div><strong id="meterScore">—</strong><p id="meterText"></p></article>
+      </div>
+      <article class="card"><div class="card-head"><div><div class="eyebrow">ACTION CENTER</div><h2>What Energy Daddy wants next</h2></div><span class="pill" id="actionCount">— actions</span></div><div id="actionList" class="actions"></div></article>
+      <div class="grid two">
+        <article class="card"><div class="eyebrow">FORECAST LOGIC</div><h2>Where the NEM balance is heading</h2><div class="forecast-box"><div><span>Current</span><strong id="forecastCurrent">—</strong></div><div class="forecast-arrow">→</div><div><span>Recent-trend estimate</span><strong id="forecastEnd">—</strong></div></div><p id="forecastExplain" class="note"></p></article>
+        <article class="card"><div class="eyebrow">DATA QUALITY</div><h2>What we trust</h2><div id="qualityList" class="quality-list"></div></article>
+      </div>
+      <div id="insightList" class="insights"></div>
+    </section>
+
+    <section id="audit" class="view">
+      <div class="section-title"><div><div class="eyebrow">BILL AUDIT</div><h2>Make the utility math understandable</h2><p class="muted audit-sub">Separate what happened <b>this month</b> from what has accumulated across the true-up year.</p></div><span class="status ok" id="auditVerdict">● evidence-led</span></div>
+
+      <article class="card audit-hero">
+        <div class="audit-now"><span>THIS MONTH AFTER CREDIT</span><strong id="auditMonth">—</strong><small>This is the new charge on the current bill.</small></div>
+        <div class="audit-vs">≠</div>
+        <div class="audit-total"><span>ACCUMULATED ACCOUNT BALANCE</span><strong id="auditBalance">—</strong><small>Built across the NEM/true-up period.</small></div>
+      </article>
+
+      <div class="audit-buckets" id="auditBuckets"></div>
+
+      <div class="grid two audit-grid">
+        <article class="card"><div class="card-head"><div><div class="eyebrow">BALANCE ANATOMY</div><h2>What the $910 is made of</h2></div><span class="pill" id="energyShare">— energy</span></div><div class="balance-stack" id="balanceStack"></div><div id="breakdown" class="breakdown roomy"></div><div class="audit-callout" id="balanceCallout"></div></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">THIS BILLING PERIOD</div><h2>When grid energy moved</h2></div><span class="pill">EV-TOU-5</span></div><div class="tou-bars" id="touBars"></div><div class="tou-summary" id="touSummary"></div></article>
+      </div>
+
+      <div class="grid two">
+        <article class="card"><div class="card-head"><div><div class="eyebrow">MONTH-BY-MONTH LEDGER</div><h2>How the NEM balance moved</h2></div><span class="pill">Nov → Aug</span></div><div class="ledger" id="auditLedger"></div></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">EVIDENCE BOARD</div><h2>Explained vs still unknown</h2></div><span class="status warn">● interval data pending</span></div><div id="evidenceBoard" class="evidence-board"></div></article>
+      </div>
+
+      <article class="card"><div class="card-head"><div><div class="eyebrow">AUDIT TRAIL</div><h2>What Energy Daddy can prove today</h2></div><span class="pill">no guessing</span></div><div id="auditTrail" class="timeline"></div></article>
+    </section>
+
+    <section id="lab" class="view">
+      <div class="section-title"><div><div class="eyebrow">WHAT-IF LAB</div><h2>Change behavior before changing hardware</h2></div><span class="status ok">● local simulation</span></div>
+      <div class="grid two">
+        <article class="card"><div class="eyebrow">TRUE-UP SCENARIO</div><h2>Monthly net-energy improvement</h2><p class="muted">Tell Energy Daddy how many net kWh per month you think you can shave from grid imports or add as exports. This does not invent a dollar rate; it shows the energy pressure change and a directional NEM balance.</p><label class="slider-row"><span>Improve net grid position</span><b id="saveKwhLabel">75 kWh/mo</b><input id="saveKwh" type="range" min="0" max="300" step="5" value="75"></label><div class="scenario-result"><div><span>Current YTD net grid</span><strong id="scenarioCurrentKwh">—</strong></div><div><span>Adjusted annualized pressure</span><strong id="scenarioAdjustedKwh">—</strong></div><div><span>Directional NEM</span><strong id="scenarioNem">—</strong></div></div><p class="note" id="scenarioExplain"></p></article>
+        <article class="card"><div class="eyebrow">PEAK SHIELD</div><h2>Protect 4–9 PM</h2><p class="muted">Use the supplied Tesla day to estimate how long the Powerwall could support the most recent observed evening load if solar vanished.</p><div class="forecast-box"><div><span>Latest SOC</span><strong id="shieldSoc">—</strong></div><div class="forecast-arrow">→</div><div><span>Estimated runway</span><strong id="shieldHours">—</strong></div></div><div class="meter"><i id="shieldMeter"></i></div><p class="note" id="shieldText"></p></article>
+      </div>
+      <div class="grid two">
+        <article class="card"><div class="eyebrow">ANOMALY ENGINE</div><h2>Things worth explaining</h2><div id="anomalyList" class="actions"></div></article>
+        <article class="card"><div class="eyebrow">SOLAR PERFORMANCE</div><h2>Observed production shape</h2><div class="flow-kpis two-up"><div><span>Peak observed</span><strong id="solarPeak">—</strong></div><div><span>Solar-dominant samples</span><strong id="solarDominantPct">—</strong></div></div><p class="note" id="solarPerfText"></p></article>
+      </div>
+    </section>
+
+    <section id="flows" class="view">
+      <div class="section-title"><div><div class="eyebrow">PHYSICS CHECK</div><h2>Solar → Home → Battery → Grid</h2></div></div>
+      <article class="card energy-map">
+        <div class="node solar"><span>☀️</span><b>Solar</b><strong id="mapSolar">—</strong></div><div class="arrow">→</div>
+        <div class="node home"><span>⌂</span><b>Home</b><strong id="mapHome">—</strong></div><div class="arrow split">↔</div>
+        <div class="node battery"><span>▰</span><b>Powerwall</b><strong id="mapBattery">—</strong></div><div class="arrow">↔</div>
+        <div class="node grid"><span>⌁</span><b>Grid</b><strong id="mapGrid">—</strong></div>
+      </article>
+      <div class="grid two">
+        <article class="card"><div class="eyebrow">EV CHARGER · EMPORIA</div><h2>July charging behavior</h2><div class="big-stat" id="evJuly">—</div><small class="muted">kWh in July</small><canvas id="evChart" height="210"></canvas></article>
+        <article class="card"><div class="eyebrow">THE JULY 18 SPIKE</div><h2>We found the load</h2><div class="compare"><div><strong id="sdgePeak">—</strong><span>SDG&E highest-use hour</span></div><div><strong id="evPeak">—</strong><span>EV charger in same hour</span></div></div><div class="meter"><i id="evShare"></i></div><p id="evExplainer" class="note"></p></article>
+      </div>
+      <div class="grid two">
+        <article class="card"><div class="eyebrow">BATTERY BEHAVIOR</div><h2>Observed today</h2><div class="flow-kpis two-up"><div><span>Charged</span><strong id="batteryCharge">—</strong></div><div><span>Discharged</span><strong id="batteryDischarge">—</strong></div></div><p class="note">Calculated from the supplied Tesla 5-minute telemetry. Positive/negative direction is interpreted from site-flow behavior, not guessed from the daily net alone.</p></article>
+        <article class="card"><div class="eyebrow">GRID BEHAVIOR</div><h2>Observed today</h2><div class="flow-kpis two-up"><div><span>Imported</span><strong id="gridImport">—</strong></div><div><span>Exported</span><strong id="gridExport">—</strong></div></div><p class="note" id="gridBehaviorText"></p></article>
+      </div>
+      <article class="card ev-timing-card"><div class="card-head"><div><div class="eyebrow">EV RATE TIMING</div><h2>Where charger energy lands</h2></div><span class="pill" id="evTouScore">—</span></div><div class="ev-tou-grid" id="evTouGrid"></div><p class="note" id="evTouText"></p></article>
+    </section>
+
+    <section id="connections" class="view">
+      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.4 connections</h2></div></div>
+      <div id="connectionsList" class="connections"></div>
+      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.4 will profile it locally, remember the import in IndexedDB, and stage it for future cloud sync.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
+    </section>
+
+    <section id="cloud" class="view">
+      <div class="section-title"><div><div class="eyebrow">CLOUDFLARE CONTROL PLANE</div><h2>Ready before we connect anything</h2><p class="muted">Build 1.4 can run completely local today, then switch to the same-origin Cloudflare API when deployed. No credentials are hard-coded in the browser.</p></div><span class="status ok" id="cloudModeBadge">● local-first</span></div>
+      <div class="grid three">
+        <article class="card brain-score"><div class="eyebrow">API MODE</div><strong id="cloudMode">LOCAL</strong><p id="cloudModeText">Using bundled evidence. Cloud API will be auto-detected when available.</p></article>
+        <article class="card brain-score"><div class="eyebrow">SYNC QUEUE</div><strong id="syncQueue">0</strong><p>Local imports waiting to be normalized or synced later.</p></article>
+        <article class="card brain-score"><div class="eyebrow">LOCAL MEMORY</div><strong id="memoryCount">0</strong><p>Imported datasets remembered in this browser.</p></article>
+      </div>
+      <div class="grid two">
+        <article class="card"><div class="card-head"><div><div class="eyebrow">CLOUD READINESS</div><h2>Stack health</h2></div><button id="testCloud">Test API</button></div><div id="cloudChecks" class="quality-list"></div></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">SOURCE REGISTRY</div><h2>Live-feed plan</h2></div><span class="pill">secrets stay server-side</span></div><div id="sourceRegistry" class="source-registry"></div></article>
+      </div>
+      <article class="card"><div class="card-head"><div><div class="eyebrow">NORMALIZED ENERGY LEDGER</div><h2>One schema for every source</h2></div><span class="pill">15-minute canonical grain</span></div><div class="schema-grid"><div><b>timestamp</b><span>interval start/end</span></div><div><b>source</b><span>sdge / tesla / solaredge / emporia</span></div><div><b>metric</b><span>grid_import / solar / home / battery / circuit</span></div><div><b>energy_wh</b><span>normalized watt-hours</span></div><div><b>quality</b><span>measured / derived / estimated</span></div><div><b>scope</b><span>site / inverter / circuit / utility meter</span></div></div><p class="note">This prevents false comparisons: two feeds are only reconciled when their timestamp, direction and measurement scope actually match.</p></article>
+      <div class="grid two">
+        <article class="card"><div class="eyebrow">EVENT BRAIN</div><h2>Explain, don't just graph</h2><div id="eventBrainPreview" class="actions"></div></article>
+        <article class="card"><div class="eyebrow">DEPLOYMENT SAFETY</div><h2>Hard boundaries</h2><div class="safety-rules"><div>✓ Home Cloudflare account only</div><div>✓ Energy Daddy resources use <code>energy-daddy-*</code></div><div>✓ Plant Daddy 8000-series untouched</div><div>✓ Energy Daddy local UI stays on <code>5050</code></div><div>✓ API secrets are Worker secrets, never frontend code</div><div>✓ Cloud is optional; local fallback remains usable</div></div></article>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

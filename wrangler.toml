@@ -1,0 +1,26 @@
+name = "energy-daddy-api"
+main = "src/worker.js"
+compatibility_date = "2026-08-19"
+workers_dev = true
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "ENERGY_DB"
+database_name = "energy-daddy-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[[kv_namespaces]]
+binding = "ENERGY_STATE"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[vars]
+APP_ENV = "production"
+ALLOWED_ORIGINS = ""
+
+[triggers]
+crons = ["*/15 * * * *"]

@@ -1,12 +1,6 @@
-# Local Port Map
+# Local port map
 
-## Energy Daddy
-
-- `5050` — Build 1 web UI
-- `5051–5099` — reserved for future Energy Daddy APIs, workers, databases, bridges, and development services
-
-## Do not use
-
-- `8000–8999` — reserved for Plant Daddy/local plant services. Existing Plant Daddy services include `8080` and `8090`.
-
-Keeping each platform in its own port family prevents accidental collisions during local development.
+- Energy Daddy static/local UI: **5050**
+- Energy Daddy Wrangler local Worker: **5051**
+- Energy Daddy future local services: **5052–5099**
+- Plant Daddy: **8000-series RESERVED — DO NOT USE**
