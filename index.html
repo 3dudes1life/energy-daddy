@@ -4,83 +4,99 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0a0a0b" />
-<title>Energy Daddy — Build 1</title>
+<title>Energy Daddy — Build 1.1</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div class="shell">
   <aside class="sidebar">
-    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1 · LOCAL FIRST</span></div></div>
+    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.1 · LOCAL FIRST</span></div></div>
     <nav>
       <button class="nav active" data-view="overview">◉ <span>Overview</span></button>
+      <button class="nav" data-view="brain">✦ <span>Energy Brain</span></button>
       <button class="nav" data-view="audit">◎ <span>Bill Audit</span></button>
       <button class="nav" data-view="flows">↔ <span>Energy Flow</span></button>
-      <button class="nav" data-view="insights">✦ <span>Insights</span></button>
       <button class="nav" data-view="connections">⌁ <span>Connections</span></button>
     </nav>
-    <div class="privacy">🔒 Your supplied exports are bundled locally in this prototype. No account number or street address is stored.</div>
+    <div class="privacy">🔒 Local-only prototype. Supplied exports stay in this folder. Plant Daddy's 8000-series ports are reserved; Energy Daddy uses 5050.</div>
   </aside>
 
   <main>
     <header>
       <div><div class="eyebrow">HOME ENERGY INTELLIGENCE</div><h1 id="page-title">Overview</h1></div>
-      <div class="header-actions"><span class="status ok">● Data loaded</span><button id="refresh">Re-run analysis</button></div>
+      <div class="header-actions"><span class="status ok">● Brain online</span><button id="refresh">Re-run analysis</button></div>
     </header>
 
     <section id="overview" class="view active">
       <div class="hero card">
-        <div><div class="eyebrow">TRUE-UP WATCH</div><div class="hero-money" id="account-balance">$—</div><div class="muted">Current accumulated SDG&E account balance · settles <b id="trueup-date">—</b></div></div>
+        <div><div class="eyebrow">TRUE-UP WATCH</div><div class="hero-money" id="account-balance">$—</div><div class="muted">Current accumulated SDG&E account balance · settles <b id="trueup-date">—</b></div><div class="hero-tags"><span id="daysLeft" class="pill">— days left</span><span id="trendPill" class="pill">—</span></div></div>
         <div class="hero-right"><div class="score-ring"><span id="confidence">—</span><small>data confidence</small></div></div>
       </div>
       <div class="kpis four">
-        <article class="card kpi"><span>Net metering</span><strong id="nem-balance">—</strong><small>energy balance</small></article>
-        <article class="card kpi"><span>Non-bypassable</span><strong id="nbc-balance">—</strong><small>charges</small></article>
-        <article class="card kpi"><span>Other meter</span><strong id="other-balance">—</strong><small>charges / payments</small></article>
+        <article class="card kpi"><span>NEM energy</span><strong id="nem-balance">—</strong><small>running energy balance</small></article>
+        <article class="card kpi"><span>Non-energy buckets</span><strong id="nonenergy-balance">—</strong><small>NBC + other meter</small></article>
+        <article class="card kpi"><span>NEM trajectory</span><strong id="nemForecast">—</strong><small>simple recent-trend estimate</small></article>
         <article class="card kpi"><span>Current month</span><strong id="month-charge">—</strong><small>after credits</small></article>
       </div>
       <div class="grid two">
-        <article class="card"><div class="card-head"><div><div class="eyebrow">NEM HISTORY</div><h2>What built the true-up</h2></div><span class="pill">Oct → Aug</span></div><canvas id="nemChart" height="220"></canvas><div class="chart-legend"><span>● Net kWh</span><span>— Running $ balance</span></div></article>
-        <article class="card"><div class="card-head"><div><div class="eyebrow">TODAY · TESLA EXPORT</div><h2>Site energy</h2></div><span class="pill" id="tesla-range">—</span></div><div class="flow-kpis"><div><span>Solar</span><strong id="t-solar">—</strong></div><div><span>Home</span><strong id="t-home">—</strong></div><div><span>Grid net</span><strong id="t-grid">—</strong></div><div><span>Battery net</span><strong id="t-battery">—</strong></div></div><canvas id="teslaChart" height="170"></canvas></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">NEM HISTORY</div><h2>What built the true-up</h2></div><span class="pill">Nov → Aug</span></div><canvas id="nemChart" height="220"></canvas><div class="chart-legend"><span>● Net kWh</span><span>— Running $ balance</span></div></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">TESLA SITE SNAPSHOT</div><h2>What the house did today</h2></div><span class="pill" id="tesla-range">—</span></div><div class="flow-kpis"><div><span>Solar</span><strong id="t-solar">—</strong></div><div><span>Home</span><strong id="t-home">—</strong></div><div><span>Grid import</span><strong id="t-import">—</strong></div><div><span>Grid export</span><strong id="t-export">—</strong></div></div><canvas id="teslaChart" height="170"></canvas></article>
+      </div>
+      <div class="grid three smart-strip">
+        <article class="card smart-kpi"><span>Solar coverage</span><strong id="solarCoverage">—</strong><small>solar generated ÷ home use</small></article>
+        <article class="card smart-kpi"><span>Grid independence</span><strong id="gridIndependence">—</strong><small>share of home demand not imported</small></article>
+        <article class="card smart-kpi"><span>Battery swing</span><strong id="batterySwing">—</strong><small>charge + discharge observed today</small></article>
       </div>
       <article class="card alert-card" id="topInsight"></article>
     </section>
 
+    <section id="brain" class="view">
+      <div class="section-title"><div><div class="eyebrow">ENERGY BRAIN</div><h2>Priorities, forecasts & anomalies</h2></div><span class="status warn" id="brainStatus">● watching</span></div>
+      <div class="grid three">
+        <article class="card brain-score"><div class="eyebrow">TRUE-UP PRESSURE</div><strong id="pressureScore">—</strong><p id="pressureText"></p></article>
+        <article class="card brain-score"><div class="eyebrow">RATE TIMING</div><strong id="timingScore">—</strong><p id="timingText"></p></article>
+        <article class="card brain-score"><div class="eyebrow">METER AGREEMENT</div><strong id="meterScore">—</strong><p id="meterText"></p></article>
+      </div>
+      <article class="card"><div class="card-head"><div><div class="eyebrow">ACTION CENTER</div><h2>What Energy Daddy wants next</h2></div><span class="pill" id="actionCount">— actions</span></div><div id="actionList" class="actions"></div></article>
+      <div class="grid two">
+        <article class="card"><div class="eyebrow">FORECAST LOGIC</div><h2>Where the NEM balance is heading</h2><div class="forecast-box"><div><span>Current</span><strong id="forecastCurrent">—</strong></div><div class="forecast-arrow">→</div><div><span>Recent-trend estimate</span><strong id="forecastEnd">—</strong></div></div><p id="forecastExplain" class="note"></p></article>
+        <article class="card"><div class="eyebrow">DATA QUALITY</div><h2>What we trust</h2><div id="qualityList" class="quality-list"></div></article>
+      </div>
+      <div id="insightList" class="insights"></div>
+    </section>
+
     <section id="audit" class="view">
-      <div class="section-title"><div><div class="eyebrow">UTILITY RECONCILIATION</div><h2>Where the $910.02 actually lives</h2></div></div>
+      <div class="section-title"><div><div class="eyebrow">UTILITY RECONCILIATION</div><h2>Where the account balance actually lives</h2></div></div>
       <div class="grid two">
         <article class="card"><div class="donut-wrap"><canvas id="donut" width="220" height="220"></canvas><div class="donut-center"><strong id="donutTotal">—</strong><span>balance</span></div></div><div id="breakdown" class="breakdown"></div></article>
-        <article class="card"><div class="eyebrow">THIS BILLING PERIOD</div><h2>Grid timing matters</h2><div class="tou-bars" id="touBars"></div><div class="note">Negative kWh = net export in that TOU bucket. Your supplied bill shows you were a net exporter during on-peak hours, but a substantial importer during super-off-peak.</div></article>
+        <article class="card"><div class="eyebrow">THIS BILLING PERIOD</div><h2>Grid timing matters</h2><div class="tou-bars" id="touBars"></div><div class="note">Negative kWh = net export in that TOU bucket. This bill shows net export during on-peak and substantial importing during super-off-peak.</div></article>
       </div>
-      <article class="card"><div class="card-head"><div><div class="eyebrow">AUDIT TRAIL</div><h2>Explain the number</h2></div><span class="status warn">● 2 items to verify</span></div><div id="auditTrail" class="timeline"></div></article>
+      <article class="card"><div class="card-head"><div><div class="eyebrow">AUDIT TRAIL</div><h2>Explain the number</h2></div><span class="status warn">● verification items</span></div><div id="auditTrail" class="timeline"></div></article>
     </section>
 
     <section id="flows" class="view">
       <div class="section-title"><div><div class="eyebrow">PHYSICS CHECK</div><h2>Solar → Home → Battery → Grid</h2></div></div>
       <article class="card energy-map">
-        <div class="node solar"><span>☀️</span><b>Solar</b><strong id="mapSolar">—</strong></div>
-        <div class="arrow">→</div>
-        <div class="node home"><span>⌂</span><b>Home</b><strong id="mapHome">—</strong></div>
-        <div class="arrow split">↔</div>
-        <div class="node battery"><span>▰</span><b>Powerwall</b><strong id="mapBattery">—</strong></div>
-        <div class="arrow">↔</div>
+        <div class="node solar"><span>☀️</span><b>Solar</b><strong id="mapSolar">—</strong></div><div class="arrow">→</div>
+        <div class="node home"><span>⌂</span><b>Home</b><strong id="mapHome">—</strong></div><div class="arrow split">↔</div>
+        <div class="node battery"><span>▰</span><b>Powerwall</b><strong id="mapBattery">—</strong></div><div class="arrow">↔</div>
         <div class="node grid"><span>⌁</span><b>Grid</b><strong id="mapGrid">—</strong></div>
       </article>
       <div class="grid two">
         <article class="card"><div class="eyebrow">EV CHARGER · EMPORIA</div><h2>July charging behavior</h2><div class="big-stat" id="evJuly">—</div><small class="muted">kWh in July</small><canvas id="evChart" height="210"></canvas></article>
         <article class="card"><div class="eyebrow">THE JULY 18 SPIKE</div><h2>We found the load</h2><div class="compare"><div><strong id="sdgePeak">—</strong><span>SDG&E highest-use hour</span></div><div><strong id="evPeak">—</strong><span>EV charger in same hour</span></div></div><div class="meter"><i id="evShare"></i></div><p id="evExplainer" class="note"></p></article>
       </div>
-    </section>
-
-    <section id="insights" class="view">
-      <div class="section-title"><div><div class="eyebrow">ENERGY BRAIN</div><h2>What the data is telling us</h2></div><button id="sortInsights">Priority first</button></div>
-      <div id="insightList" class="insights"></div>
+      <div class="grid two">
+        <article class="card"><div class="eyebrow">BATTERY BEHAVIOR</div><h2>Observed today</h2><div class="flow-kpis two-up"><div><span>Charged</span><strong id="batteryCharge">—</strong></div><div><span>Discharged</span><strong id="batteryDischarge">—</strong></div></div><p class="note">Calculated from the supplied Tesla 5-minute telemetry. Positive/negative direction is interpreted from site-flow behavior, not guessed from the daily net alone.</p></article>
+        <article class="card"><div class="eyebrow">GRID BEHAVIOR</div><h2>Observed today</h2><div class="flow-kpis two-up"><div><span>Imported</span><strong id="gridImport">—</strong></div><div><span>Exported</span><strong id="gridExport">—</strong></div></div><p class="note" id="gridBehaviorText"></p></article>
+      </div>
     </section>
 
     <section id="connections" class="view">
-      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1 connections</h2></div></div>
+      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.1 connections</h2></div></div>
       <div id="connectionsList" class="connections"></div>
-      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Drop a new CSV</h2><p class="muted">Build 1 can inspect Tesla-style CSVs directly in your browser. Nothing uploads anywhere.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
+      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.1 will profile rows, columns, time coverage and numeric fields locally in your browser.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
     </section>
   </main>
 </div>

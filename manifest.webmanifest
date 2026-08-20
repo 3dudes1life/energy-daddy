@@ -1,1 +1,9 @@
-{"name":"Energy Daddy","short_name":"Energy Daddy","start_url":"./","display":"standalone","background_color":"#09090b","theme_color":"#09090b","icons":[]}
+{
+  "name": "Energy Daddy Build 1.1",
+  "short_name": "Energy Daddy",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "icons": []
+}
