@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0a0a0b" />
-<title>Energy Daddy — Build 1.5</title>
+<title>Energy Daddy — Build 1.5.1</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="styles.css" />
 </head>
@@ -128,13 +128,13 @@
     </section>
 
     <section id="connections" class="view">
-      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.5 connections</h2></div></div>
+      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.5.1 connections</h2></div></div>
       <div id="connectionsList" class="connections"></div>
-      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.5 will profile it locally, remember the import in IndexedDB, and stage it for future cloud sync.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
+      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.5.1 will profile it locally, remember the import in IndexedDB, and stage it for future cloud sync.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
     </section>
 
     <section id="cloud" class="view">
-      <div class="section-title"><div><div class="eyebrow">LIVE BRAIN CONTROL PLANE</div><h2>Cloud connected · providers stay evidence-aware</h2><p class="muted">Build 1.5 uses the deployed Cloudflare brain when available, keeps secrets server-side, and falls back to bundled/local evidence when a provider is not connected.</p></div><span class="status ok" id="cloudModeBadge">● local-first</span></div>
+      <div class="section-title"><div><div class="eyebrow">LIVE BRAIN CONTROL PLANE</div><h2>Cloud connected · providers stay evidence-aware</h2><p class="muted">Build 1.5.1 uses the deployed Cloudflare brain when available, keeps secrets server-side, and falls back to bundled/local evidence when a provider is not connected.</p></div><span class="status ok" id="cloudModeBadge">● local-first</span></div>
       <div class="grid three">
         <article class="card brain-score"><div class="eyebrow">API MODE</div><strong id="cloudMode">LOCAL</strong><p id="cloudModeText">Using bundled evidence. Cloud API will be auto-detected when available.</p></article>
         <article class="card brain-score"><div class="eyebrow">SYNC QUEUE</div><strong id="syncQueue">0</strong><p>Local imports waiting to be normalized or synced later.</p></article>

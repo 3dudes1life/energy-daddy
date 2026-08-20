@@ -25,7 +25,7 @@ async function health(env){
   let d1=false, kv=false;
   try{ await env.ENERGY_DB.prepare('SELECT 1 AS ok').first(); d1=true; }catch{}
   try{ await env.ENERGY_STATE.put('health:last', nowIso(), {expirationTtl:3600}); kv=true; }catch{}
-  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.5', d1, kv, time:nowIso()};
+  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.5.1', d1, kv, time:nowIso()};
 }
 async function latest(env){
   const raw=await env.ENERGY_STATE.get('latest:site','json');
@@ -62,7 +62,7 @@ async function live(env){
   `).all()).results||[];
   const src=await sources(env);
   const cron=await env.ENERGY_STATE.get('cron:last');
-  return {ok:true,version:'1.5',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
+  return {ok:true,version:'1.5.1',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
 }
 async function events(env,url){
   const limit=Math.min(100,Math.max(1,Number(url.searchParams.get('limit')||20)));
@@ -103,7 +103,7 @@ async function pollSolarEdge(env){
   const siteId=(env.SOLAREDGE_SITE_ID||'').trim();
   const apiKey=(env.SOLAREDGE_API_KEY||'').trim();
   if(!siteId||!apiKey){
-    const state={status:'awaiting_credentials',live:false,message:'SolarEdge API key/site ID not configured. Build 1.5 will not guess or poll without them.'};
+    const state={status:'awaiting_credentials',live:false,message:'SolarEdge API key/site ID not configured. Build 1.5.1 will not guess or poll without them.'};
     await setProviderState(env,'solaredge-site',state);
     await providerRun(env,'SolarEdge','skipped',0,state.message);
     return state;
@@ -117,7 +117,7 @@ async function pollSolarEdge(env){
     const power=Number(overview.currentPower?.power);
     if(!Number.isFinite(power)) throw new Error('SolarEdge response did not include currentPower.power');
     const captured=nowIso();
-    const accepted=await ingestPoints([{source_id:'solaredge-site',metric:'solar_production',t:captured,energy_wh:power*0.25,power_avg_w:power,scope:'inverter',quality:'derived_live',metadata:{provider:'SolarEdge',provider_last_update:overview.lastUpdateTime||null,derivation:'current power × 15 minutes; use interval API later for settlement-grade history'}}],env);
+    const accepted=await ingestPoints([{source_id:'solaredge-site',metric:'solar_production',t:captured,energy_wh:power*0.25,power_avg_w:power,scope:'array_a',quality:'derived_live',metadata:{provider:'SolarEdge',provider_last_update:overview.lastUpdateTime||null,derivation:'current power × 15 minutes; use interval API later for settlement-grade history'}}],env);
     await env.ENERGY_DB.prepare(`UPDATE sources SET status='live',last_seen_at=? WHERE id='solaredge-site'`).bind(captured).run();
     const state={status:'live',live:true,last_seen_at:captured,power_w:power,points:accepted,message:'SolarEdge production poll succeeded.'};
     await setProviderState(env,'solaredge-site',state); await providerRun(env,'SolarEdge','ok',accepted,'current production');
@@ -134,6 +134,7 @@ async function runBrainCycle(env){
   const started=nowIso();
   await env.ENERGY_STATE.put('cron:last',started);
   const solar=await pollSolarEdge(env);
+  await setProviderState(env,'enphase-site',{status:'awaiting_credentials',live:false,message:'Enphase is Array B production plus site-meter evidence. Keep its production separate from SolarEdge Array A; site consumption/grid channels must be topology-validated before utility reconciliation.'});
   await setProviderState(env,'tesla-site',{status:'historical_only',live:false,message:'Tesla live polling intentionally disabled to avoid paid API use. Battery impact comes from periodic history imports.'});
   await setProviderState(env,'sdge-meter',{status:'reconciliation',live:false,message:'SDG&E is treated as delayed settlement/reconciliation evidence, not a real-time feed.'});
   await setProviderState(env,'emporia-ev',{status:'manual_or_bridge',live:false,message:'Emporia EV attribution is loaded from exports today; a local bridge can be added later without blocking SolarEdge live production.'});

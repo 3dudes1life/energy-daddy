@@ -35,3 +35,11 @@ Set `SOLAREDGE_SITE_ID` as a Worker variable and `SOLAREDGE_API_KEY` as a Worker
 4. Configure SolarEdge credentials only when ready.
 
 The existing D1/KV resource IDs are preserved in `wrangler.toml` for the Home Cloudflare account.
+
+
+## Build 1.5.1.1 dual-solar topology
+- SolarEdge is Array A production, not whole-property solar.
+- Enphase is Array B production plus site-meter evidence (consumption/import/export as observed in Enlighten).
+- `total_solar` is a future derived metric: aligned SolarEdge Array A + Enphase Array B. It is never written as a physical source.
+- Enphase site-meter consumption/grid channels remain separate evidence until battery/meter topology is validated against Tesla/SDG&E intervals.
+- Tesla remains historical/periodic battery-impact evidence; paid live polling stays disabled.

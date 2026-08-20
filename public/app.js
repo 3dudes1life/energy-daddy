@@ -181,7 +181,7 @@ function getInsights(){const b=DATA.bill,m=METRICS;return [
  {p:3,t:'Green Button is the unlock',d:'Once SDG&E 15-minute intervals are imported, the platform can reconcile utility-meter import/export against Tesla by timestamp and flag actual disagreements instead of inferring from monthly totals.'}
 ]}
 function renderInsights(){const arr=getInsights().sort((a,b)=>a.p-b.p);$('#insightList').innerHTML=arr.map(i=>`<article class="card insight"><span class="priority">P${i.p}</span><div class="eyebrow">SMART FINDING</div><h3>${i.t}</h3><p>${i.d}</p></article>`).join('')}
-function renderConnections(){const rows=[['⚡','SDG&E','Bill + NEM + TOU','Loaded'],['▰','Tesla Powerwall','5-minute site telemetry','Loaded'],['🔌','Emporia','EV circuit export','Loaded'],['☀️','SolarEdge','Production snapshot','Partial'],['◉','Enphase Enlighten','Possible second solar view','Not connected'],['⌂','Nest / HVAC','Future load context','Not connected'],['🚘','Tesla vehicle','Future charging context','Not connected'],['☁️','Ambient Weather','Future weather correlation','Not connected']];$('#connectionsList').innerHTML=rows.map(r=>`<article class="card connection"><div class="icon">${r[0]}</div><div class="meta"><b>${r[1]}</b><span>${r[2]}</span></div><span class="tag ${r[3]==='Not connected'?'off':''}">${r[3]}</span></article>`).join('')}
+function renderConnections(){const rows=[['⚡','SDG&E','Bill + NEM + TOU','Loaded'],['▰','Tesla Powerwall','5-minute site telemetry','Loaded'],['🔌','Emporia','EV circuit export','Loaded'],['☀️','SolarEdge','Array A production','Partial'],['◉','Enphase Enlighten','Array B + site meter','Ready to connect'],['⌂','Nest / HVAC','Future load context','Not connected'],['🚘','Tesla vehicle','Future charging context','Not connected'],['☁️','Ambient Weather','Future weather correlation','Not connected']];$('#connectionsList').innerHTML=rows.map(r=>`<article class="card connection"><div class="icon">${r[0]}</div><div class="meta"><b>${r[1]}</b><span>${r[2]}</span></div><span class="tag ${r[3]==='Not connected'?'off':''}">${r[3]}</span></article>`).join('')}
 
 const CloudBrain={mode:'local',health:null,live:null,queue:0,memory:0,lastError:null};
 function openEnergyDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open('energy-daddy-local',1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('imports'))db.createObjectStore('imports',{keyPath:'id'});if(!db.objectStoreNames.contains('queue'))db.createObjectStore('queue',{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
@@ -216,13 +216,15 @@ function renderCloud(){
   ['D1 ledger',CloudBrain.health?.d1?'ready':'staged','Canonical 15-minute telemetry is the durable evidence ledger.'],
   ['KV current state',CloudBrain.health?.kv?'ready':'staged','Provider freshness + current state live here.'],
   ['Tesla live polling','disabled','$0 strategy: periodic historical evidence only unless you later decide paid Tesla telemetry is worth it.'],
-  ['SolarEdge production','ready','Build 1.5 can poll SolarEdge every 15 minutes once SITE ID + API key are configured server-side.']
+  ['SolarEdge Array A','ready','Poll independently every 15 minutes once credentials are configured.'],
+  ['Enphase Array B + site meter','ready','Connect separately; never overwrite or double-count SolarEdge production.']
  ];
  $('#cloudChecks').innerHTML=checks.map(([n,c,d])=>`<div class="quality"><b>${n}</b><span class="q ${c==='ready'||c==='safe'?'high':'partial'}">${c}</span><small>${d}</small></div>`).join('');
  const src=live?.sources||[];
  const byId=Object.fromEntries(src.map(x=>[x.id,x]));
  const plan=[
-  ['solaredge-site','SolarEdge','Solar production','15-minute live production'],
+  ['solaredge-site','SolarEdge','Array A production','15-minute live production'],
+  ['enphase-site','Enphase','Array B + site meter','15-minute production + consumption/grid evidence'],
   ['tesla-site','Tesla','Battery impact','historical / periodic — no paid live polling'],
   ['sdge-meter','SDG&E','Utility settlement','delayed reconciliation, not instant'],
   ['emporia-ev','Emporia','Load attribution','EV export today · bridge later']
@@ -237,7 +239,7 @@ function renderCloud(){
  const events=[
   ['✓','Explained event','July 18 midnight demand spike is mostly EV charging.'],
   ['$0','Tesla strategy','Battery history stays periodic/manual; live paid Tesla polling is intentionally disabled.'],
-  ['☀','SolarEdge strategy','Production becomes the first automatic feed once its API credentials are added as Worker secrets.'],
+  ['☀','Dual-solar strategy','SolarEdge Array A + Enphase Array B stay independent; Energy Daddy derives Total Solar only after aligned intervals are available.'],
   ['⚠','Utility audit rule','Only call an SDG&E discrepancy after aligned interval evidence actually disagrees.']
  ];
  $('#eventBrainPreview').innerHTML=events.map(([p,t,d])=>`<div class="action"><span>${p}</span><div><b>${t}</b><p>${d}</p></div></div>`).join('');
