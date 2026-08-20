@@ -1,31 +1,27 @@
-# Energy Daddy by DCW Grows — Build 1.6.1
+# Energy Daddy by DCW Grows — Build 1.7 Daily Coach
 
-Energy Daddy is home energy intelligence, not another smart-home remote. Build 1.6.1 adds a deterministic Smart Core and a phone-first UI while keeping the Cloudflare Worker/D1/KV architecture from 1.5.1.
+Build 1.7 adds a deterministic Daily Coach on top of the 1.6.1 mobile rescue. No provider credentials are required for the coach to work: it ranks actions from the loaded SDG&E, Tesla, Emporia, SolarEdge evidence plus the configured EV-TOU-5 timing model.
 
-## Cloud architecture
-- Worker: `energy-daddy-api`
-- D1: `energy-daddy-db`
-- KV: `ENERGY_STATE`
-- Cron: every 15 minutes
-- SolarEdge: Array A
-- Enphase: Array B + site-meter evidence
-- Tesla: historical battery impact only
-- Emporia: load attribution
-- SDG&E: delayed settlement/reconciliation
+## What is new
+- Energy Score derived from rate timing, observed self-supply, data agreement, and learning confidence.
+- Right Now state: cheap window / normal window / protect mode.
+- Best flexible-load window using observed solar behavior plus TOU overlap.
+- Day-type classifier and behavior fingerprints.
+- Three auto-ranked daily actions with evidence disclosure.
+- Cloud heartbeat freshness shown directly in the coach.
+- No generative AI dependency. Recommendations are explainable and confidence-gated.
+- Enphase, SolarEdge and Emporia remain ready for the next live-feed phase.
+
+## Deploy
+```bash
+npm install
+npx wrangler deploy
+```
+
+No new D1 migration is required for 1.7.
 
 ## Local ports
 - UI: 5050
 - Worker: 5051
 - Future Energy Daddy: 5052–5099
-- Plant Daddy 8000-series remains reserved.
-
-## Phone
-Open the deployed Cloudflare URL in Safari and use Share → Add to Home Screen. Build 1.6.1 includes a standalone web-app manifest and offline shell caching.
-
-
-## 1.6.1 Mobile Rescue
-- Full phone-first responsive pass; no horizontal page scrolling.
-- Adaptive Browser Brain classifies viewport as micro/phone/compact/tablet/desktop and redraws charts on breakpoint/orientation changes.
-- Charts are constrained inside responsive shells and use smaller mobile heights.
-- Long source/runtime text, audit rows, cards, and provider grids can shrink/wrap instead of forcing page width.
-- 350px, 480px and 760px layouts are explicitly supported.
+- Plant Daddy: 8000-series reserved

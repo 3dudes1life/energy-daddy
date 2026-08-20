@@ -5,7 +5,7 @@ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 let DATA={},METRICS={};
 async function load(){
   const names=['bill','tesla','emporia','solaredge'];
-  const all=await Promise.all(names.map(x=>fetch(`data/${x}.json?v=15`).then(r=>{if(!r.ok)throw new Error(`${x}: ${r.status}`);return r.json()})));
+  const all=await Promise.all(names.map(x=>fetch(`data/${x}.json?v=17`).then(r=>{if(!r.ok)throw new Error(`${x}: ${r.status}`);return r.json()})));
   DATA=Object.fromEntries(names.map((n,i)=>[n,all[i]]));
   METRICS=analyze(); render(); initLocalMemory(); probeCloud();
 }
@@ -61,7 +61,7 @@ function render(){
  $('#gridBehaviorText').textContent=m.gridExport>m.gridImport?`The supplied Tesla day is a net-export day by about ${num(m.gridExport-m.gridImport)} kWh through the end of the export.`:`The supplied Tesla day is a net-import day by about ${num(m.gridImport-m.gridExport)} kWh through the end of the export.`;
  $('#evJuly').textContent=num(e.summary.july_kwh,1); $('#sdgePeak').textContent=`${num(b.current_period.highest_demand_kw,1)} kW`; $('#evPeak').textContent=`${num(e.summary.july18_midnight_kwh,2)} kWh`;
  $('#evShare').style.width=Math.min(100,m.peakShare)+'%'; $('#evExplainer').textContent=`The EV charger explains about ${num(m.peakShare,0)}% of SDG&E's 14.4 kW highest-use hour. The remaining ~${num(b.current_period.highest_demand_kw-e.summary.july18_midnight_kwh,1)} kW came from other loads.`;
- renderBrain(); renderLearningCore(); renderLiveBrain(); renderLab(); drawNem(); drawTesla(); drawEv(); renderTou(); renderAudit(); renderInsights(); renderConnections(); renderEvTou(); renderCloud();
+ renderBrain(); renderLearningCore(); renderDailyCoach(); renderLiveBrain(); renderLab(); drawNem(); drawTesla(); drawEv(); renderTou(); renderAudit(); renderInsights(); renderConnections(); renderEvTou(); renderCloud();
  const winterPeak=Math.max(...b.months.map(x=>x.balance));
  $('#topInsight').innerHTML=`<h3>✦ Smart finding: this is a winter debt problem, not a broken-solar-looking summer.</h3><p>The NEM energy balance peaked at <b>${money(winterPeak)}</b> in March. Recent months have generally pushed it down. On the supplied Tesla day, solar generated <b>${num(m.solar)} kWh</b> against <b>${num(m.home)} kWh</b> of home use and the site exported more energy than it imported.</p>`;
 }
@@ -89,6 +89,57 @@ function renderLearningCore(){
  if(m.evPreferredPct<70){title='Move more EV energy to the preferred window';text=`Only ${num(m.evPreferredPct,0)}% of observed EV charging landed in super-off-peak.`}
  $('#nextActionTitle').textContent=title;$('#nextActionText').textContent=text;$('#nextActionWhy').innerHTML=`<b>Why?</b><span>${why}</span>`;
  $('#brainStatus').textContent=`● ${p.stage.toLowerCase()}`;
+}
+
+function observedSolarWindow(){
+ const ser=DATA.tesla?.series||[];
+ const pts=ser.filter(r=>Number(r.solar||0)>=Math.max(1,Number(r.home||0)));
+ if(!pts.length)return null;
+ const fmt=t=>new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+ return {start:pts[0].t,end:pts[pts.length-1].t,label:`${fmt(pts[0].t)}–${fmt(pts[pts.length-1].t)}`};
+}
+function dailyCoachProfile(){
+ const m=METRICS,b=DATA.bill,p=learningProfile(),now=new Date(),tou=touStateAt(now),window=observedSolarWindow();
+ const selfSupply=clamp(m.gridIndependence,0,100);
+ const timing=m.timing;
+ const reconciliation=clamp(100-Math.min(35,m.physicsMae*30),55,100);
+ const learning=p.confidence;
+ const score=Math.round(timing*.38+selfSupply*.28+reconciliation*.14+learning*.20);
+ const onPeak=tou==='ON-PEAK',superOff=tou==='SUPER OFF-PEAK';
+ let nowTitle=superOff?'CHEAP WINDOW':onPeak?'PROTECT MODE':'NORMAL WINDOW';
+ let nowWhy=superOff?'Super off-peak is active. Flexible grid loads are cheapest here.':onPeak?'4–9 PM on-peak is active. Avoid starting flexible heavy loads when practical.':'You are outside the highest-cost window. Hold large flexible loads for solar or super off-peak when possible.';
+ const best='10 AM–2 PM';
+ const bestWhy=window?`Your supplied solar day was production-strong from ${window.label}; 10 AM–2 PM overlaps that pattern with super off-peak.`:'10 AM–2 PM overlaps super off-peak and the expected daytime solar window.';
+ let dayType='SOLAR-LEANING';
+ if(m.gridExport>m.gridImport*1.15)dayType='EXPORT-HEAVY';
+ else if(m.evTou.total>40)dayType='EV-HEAVY';
+ else if(m.gridImport>m.gridExport*1.25)dayType='GRID-HEAVY';
+ const actions=[];
+ if(onPeak) actions.push(['watch','Hold flexible loads','Wait until after 9 PM unless the load is necessary.']);
+ else if(superOff) actions.push(['good','Good time for flexible loads','Your rate plan currently favors this window.']);
+ else actions.push(['info','Wait for the better window','10 AM–2 PM or midnight–6 AM is usually more favorable than now.']);
+ actions.push(['good','Keep EV out of 4–9 PM',`${num(m.evPreferredPct,0)}% of observed EV energy already lands in super off-peak.`]);
+ actions.push([b.current_period.on_peak_kwh<0?'good':'watch','Protect the evening peak',b.current_period.on_peak_kwh<0?`This bill is already net-exporting ${Math.abs(b.current_period.on_peak_kwh)} kWh during on-peak — preserve that behavior.`:`On-peak imports remain an optimization target.`]);
+ return {score,tou,nowTitle,nowWhy,best,bestWhy,dayType,dayTypeConfidence:Math.round((p.confidence+timing)/2),actions,window,mode:CloudBrain.mode==='cloud'?'CLOUD + HISTORY':'HISTORICAL'};
+}
+function renderDailyCoach(){
+ if(!$('#dailyCoachCard'))return; const c=dailyCoachProfile(),m=METRICS,b=DATA.bill;
+ $('#energyScore').textContent=c.score;
+ $('#coachHeadline').textContent=c.score>=85?'Your energy habits are working today':c.score>=70?'Good foundation — protect the expensive hours':'There is useful room to optimize';
+ $('#coachSubhead').textContent=`Energy Daddy ranked this from rate timing, observed self-supply, data agreement and ${learningProfile().models.length} household behavior models.`;
+ $('#coachNow').textContent=c.nowTitle; $('#coachNowWhy').textContent=c.nowWhy;
+ $('#coachBestWindow').textContent=c.best; $('#coachBestWhy').textContent=c.bestWhy;
+ $('#coachProtect').textContent='4–9 PM'; $('#coachProtectWhy').textContent='EV-TOU-5 on-peak · preserve battery/solar leverage.';
+ $('#coachActions').innerHTML=c.actions.map(([cls,t,d])=>`<div class="coach-action ${cls}"><b>${t}</b><small>${d}</small></div>`).join('');
+ $('#coachMode').textContent=c.mode;
+ $('#coachFreshness').innerHTML=CloudBrain.mode==='cloud'?`<span class="pulse-dot"></span> Cloud brain ${CloudBrain.live?.cron_last?`checked ${fmtAge(CloudBrain.live.cron_last)}`:'online'}`:'Using loaded household evidence';
+ $('#coachEvidence').innerHTML=`<b>How this was decided</b><br>Rate timing score: ${m.timing}/100 · Grid independence on supplied Tesla day: ${num(m.gridIndependence,0)}% · Learning confidence: ${learningProfile().confidence}% · Tesla physics residual: ${num(m.physicsMae,2)} kW. ${c.window?`Observed solar-dominant window: ${c.window.label}.`:''} No generative AI was used.`;
+ $('#dayType').textContent=c.dayType; $('#dayTypeConfidence').textContent=`${c.dayTypeConfidence}% confidence`;
+ $('#dayTypeText').textContent=`This classification is based on the loaded household evidence, not a generic household profile. It will graduate to true day-by-day classification once Enphase/SolarEdge/Emporia live history is connected.`;
+ const schedule=[['12–6 AM','Super off-peak','EV / flexible grid loads'],['10 AM–2 PM','Super off-peak + solar overlap','Best daytime flexible-load target'],['4–9 PM','On-peak','Protect battery + avoid new heavy loads']];
+ $('#miniSchedule').innerHTML=schedule.map(r=>`<div class="schedule-row"><b>${r[0]}</b><span>${r[1]}</span><em>${r[2]}</em></div>`).join('');
+ const fp=[['🚘','EV signature',`${num(m.evPreferredPct,0)}% super off-peak`,m.evPreferredPct>80?'strong':'learning'],['☀️','Solar shape',`${num(m.solarDominant,0)}% solar-dominant samples`,m.solarDominant>35?'strong':'learning'],['🔋','Peak protection',`${num(m.onPeakImport,1)} kWh import / ${num(m.onPeakExport,1)} kWh export`,m.onPeakExport>=m.onPeakImport?'strong':'watch'],['◎','True-up pattern',`${money(b.trueup.nem_balance)} NEM balance`,m.avgDelta<0?'improving':'watch']];
+ $('#fingerprints').innerHTML=fp.map(([i,t,d,st])=>`<div class="fingerprint"><span>${i}</span><div><b>${t}</b><small>${d}</small></div><em>${st}</em></div>`).join('');
 }
 function renderBrain(){const {bill:b,solaredge:s}=DATA,m=METRICS;
  $('#pressureScore').textContent=`${m.pressure}/100`; $('#pressureText').textContent=`Current account balance is ${money(b.trueup.account_balance)} with ${m.daysLeft} days until true-up. Energy-only trajectory is improving, but non-energy buckets already total ${money(m.nonEnergy)}.`;
@@ -269,6 +320,7 @@ function renderCloud(){
   ['☀','Dual-solar strategy','SolarEdge Array A + Enphase Array B stay independent; Energy Daddy derives Total Solar only after aligned intervals are available.'],
   ['⚠','Utility audit rule','Only call an SDG&E discrepancy after aligned interval evidence actually disagrees.']
  ];
+ renderDailyCoach();
  $('#eventBrainPreview').innerHTML=events.map(([p,t,d])=>`<div class="action"><span>${p}</span><div><b>${t}</b><p>${d}</p></div></div>`).join('');
 }
 function openView(view){
@@ -287,6 +339,7 @@ const more=$('.mobile-more-btn');if(more)more.onclick=openMobileSheet;
 if($('#closeMobileSheet'))$('#closeMobileSheet').onclick=closeMobileSheet;if($('#mobileSheetBackdrop'))$('#mobileSheetBackdrop').onclick=closeMobileSheet;
 $$('[data-mobile-view]').forEach(b=>b.onclick=()=>openView(b.dataset.mobileView));
 if($('#showInstallHelp'))$('#showInstallHelp').onclick=()=>{openMobileSheet();setTimeout(()=>$('#installHelp')?.scrollIntoView({behavior:'smooth',block:'center'}),150)};
+if($('#openCoachWhy'))$('#openCoachWhy').onclick=()=>{const e=$('#coachEvidence');const open=e.hasAttribute('hidden');if(open)e.removeAttribute('hidden');else e.setAttribute('hidden','');$('#openCoachWhy').textContent=open?'Hide why':'Why these?'};
 
 $('#refresh').onclick=()=>load(); if($('#testCloud'))$('#testCloud').onclick=()=>probeCloud(); setInterval(()=>{if(document.visibilityState==='visible')probeCloud()},60000);
 $('#csvUpload').addEventListener('change',async ev=>{const f=ev.target.files[0];if(!f)return;const text=await f.text(),lines=text.trim().split(/\r?\n/),headers=(lines[0]||'').split(',');const rows=lines.slice(1,Math.min(lines.length,501)).map(l=>l.split(','));const numeric=headers.map((h,i)=>{const vals=rows.map(r=>Number(r[i])).filter(Number.isFinite);return vals.length>Math.max(3,rows.length*.7)?`${h}: numeric (${vals.length} sampled)`:null}).filter(Boolean);let dates=[];rows.forEach(r=>r.forEach(v=>{const d=new Date(v);if(v&&/[-/:T]/.test(v)&&!isNaN(d))dates.push(d)}));dates.sort((a,b)=>a-b);const id=`${f.name}:${f.size}:${f.lastModified}`;await saveLocalImport({id,filename:f.name,size:f.size,row_count:Math.max(0,lines.length-1),headers,range_start:dates[0]?.toISOString()||null,range_end:dates.at(-1)?.toISOString()||null,imported_at:new Date().toISOString()});$('#uploadResult').textContent=`${f.name}\n${lines.length-1} data rows\n${headers.length} columns\nColumns: ${headers.join(' · ')}\n${dates.length?`Time coverage sampled: ${dates[0].toLocaleString()} → ${dates.at(-1).toLocaleString()}\n`:''}${numeric.length?`Likely numeric fields:\n- ${numeric.join('\n- ')}\n`:''}\nSaved to local Energy Daddy memory and staged for future cloud sync. File contents were not uploaded.`});
@@ -294,7 +347,7 @@ window.addEventListener('resize',()=>{if(DATA.bill){if($('#overview').classList.
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 load().catch(err=>{console.error(err);document.querySelector('.status.ok').textContent='● Data load error';document.querySelector('.status.ok').classList.add('warn')});
 
-// Build 1.6.1 Adaptive Browser Brain
+// Build 1.7 Adaptive Browser Brain
 (function adaptiveBrowserBrain(){
   const root=document.body;
   let lastBucket='';

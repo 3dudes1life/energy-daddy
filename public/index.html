@@ -7,14 +7,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Energy Daddy" />
-<title>Energy Daddy — Build 1.6 Smart Core</title>
+<title>Energy Daddy — Build 1.7 Daily Coach</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div class="shell">
   <aside class="sidebar">
-    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.6 · SMART CORE</span></div></div>
+    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.7 · DAILY COACH</span></div></div>
     <nav>
       <button class="nav active" data-view="overview">◉ <span>Overview</span></button>
       <button class="nav" data-view="brain">✦ <span>Energy Brain</span></button>
@@ -29,7 +29,7 @@
   </aside>
 
   <main>
-    <div class="mobile-brandbar"><div class="mobile-brandmark">⚡</div><div><b>Energy Daddy</b><small>by DCW Grows · Smart Core</small></div><span id="mobileCloudDot">●</span></div>
+    <div class="mobile-brandbar"><div class="mobile-brandmark">⚡</div><div><b>Energy Daddy</b><small>by DCW Grows · Daily Coach</small></div><span id="mobileCloudDot">●</span></div>
     <header>
       <div><div class="eyebrow">HOME ENERGY INTELLIGENCE</div><h1 id="page-title">Overview</h1></div>
       <div class="header-actions"><span class="status ok">● Brain online</span><button id="refresh">Re-run analysis</button></div>
@@ -43,6 +43,20 @@
       <article class="card mobile-watch-card">
         <div><div class="eyebrow">POCKET WATCH</div><b>Energy Daddy is running in Cloudflare</b><small id="mobileWatchText">Checking cloud brain…</small></div>
         <button type="button" id="showInstallHelp">Add to phone</button>
+      </article>
+      <article class="card coach-card" id="dailyCoachCard">
+        <div class="coach-head">
+          <div><div class="eyebrow">DAILY COACH</div><h2 id="coachHeadline">Building today's plan…</h2><p id="coachSubhead" class="muted">Energy Daddy is ranking the safest actions from your rate plan and learned household behavior.</p></div>
+          <div class="energy-score"><strong id="energyScore">—</strong><span>/100</span><small>Energy Score</small></div>
+        </div>
+        <div class="coach-now">
+          <div><span>RIGHT NOW</span><strong id="coachNow">—</strong><small id="coachNowWhy">Checking rate window…</small></div>
+          <div><span>BEST FLEX WINDOW</span><strong id="coachBestWindow">—</strong><small id="coachBestWhy">Based on observed solar + TOU overlap</small></div>
+          <div><span>PROTECT</span><strong id="coachProtect">4–9 PM</strong><small id="coachProtectWhy">Highest-cost window on EV-TOU-5</small></div>
+        </div>
+        <div class="coach-actions" id="coachActions"></div>
+        <div class="coach-foot"><span class="pill" id="coachMode">HISTORICAL</span><span id="coachFreshness">Waiting for cloud brain…</span><button type="button" id="openCoachWhy">Why these?</button></div>
+        <div class="coach-evidence" id="coachEvidence" hidden></div>
       </article>
       <div class="kpis four">
         <article class="card kpi"><span>NEM energy</span><strong id="nem-balance">—</strong><small>running energy balance</small></article>
@@ -71,6 +85,10 @@
       <div class="smart-core-hero card">
         <div><div class="eyebrow">LEARNING STATE</div><strong id="learningStage">LEARNING</strong><p id="learningSummary">Building household behavior models from loaded evidence.</p></div>
         <div class="smart-core-stats"><div><span>Confidence</span><b id="learningConfidence">—</b></div><div><span>Models</span><b id="modelCount">—</b></div><div><span>Mode</span><b id="smartMode">DATA</b></div></div>
+      </div>
+      <div class="grid two coach-brain-grid">
+        <article class="card"><div class="card-head"><div><div class="eyebrow">TODAY MODE</div><h2 id="dayType">Learning day type</h2></div><span class="pill" id="dayTypeConfidence">—</span></div><p class="note" id="dayTypeText"></p><div class="mini-schedule" id="miniSchedule"></div></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">BEHAVIOR FINGERPRINT</div><h2>Patterns Energy Daddy recognizes</h2></div><span class="pill">deterministic</span></div><div class="fingerprints" id="fingerprints"></div></article>
       </div>
       <div class="grid two smart-core-grid">
         <article class="card"><div class="card-head"><div><div class="eyebrow">HOUSE MODELS</div><h2>What Energy Daddy has learned</h2></div><span class="pill">explainable</span></div><div id="learningModels" class="learning-models"></div></article>
@@ -145,13 +163,13 @@
     </section>
 
     <section id="connections" class="view">
-      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.6 connections</h2></div></div>
+      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.7 connections</h2></div></div>
       <div id="connectionsList" class="connections"></div>
-      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.6 will profile it locally, remember the import in IndexedDB, and stage it for future cloud sync.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
+      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.7 will profile it locally, remember the import in IndexedDB, and stage it for future cloud sync.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
     </section>
 
     <section id="cloud" class="view">
-      <div class="section-title"><div><div class="eyebrow">LIVE BRAIN CONTROL PLANE</div><h2>Cloud connected · providers stay evidence-aware</h2><p class="muted">Build 1.6 uses the deployed Cloudflare brain when available, keeps secrets server-side, and falls back to bundled/local evidence when a provider is not connected.</p></div><span class="status ok" id="cloudModeBadge">● local-first</span></div>
+      <div class="section-title"><div><div class="eyebrow">LIVE BRAIN CONTROL PLANE</div><h2>Cloud connected · providers stay evidence-aware</h2><p class="muted">Build 1.7 uses the deployed Cloudflare brain when available, keeps secrets server-side, and falls back to bundled/local evidence when a provider is not connected.</p></div><span class="status ok" id="cloudModeBadge">● local-first</span></div>
       <div class="grid three">
         <article class="card brain-score"><div class="eyebrow">API MODE</div><strong id="cloudMode">LOCAL</strong><p id="cloudModeText">Using bundled evidence. Cloud API will be auto-detected when available.</p></article>
         <article class="card brain-score"><div class="eyebrow">SYNC QUEUE</div><strong id="syncQueue">0</strong><p>Local imports waiting to be normalized or synced later.</p></article>
