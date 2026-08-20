@@ -293,3 +293,28 @@ $('#csvUpload').addEventListener('change',async ev=>{const f=ev.target.files[0];
 window.addEventListener('resize',()=>{if(DATA.bill){if($('#overview').classList.contains('active')){drawNem();drawTesla()}if($('#audit').classList.contains('active'))drawDonut();if($('#flows').classList.contains('active'))drawEv()}});
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 load().catch(err=>{console.error(err);document.querySelector('.status.ok').textContent='● Data load error';document.querySelector('.status.ok').classList.add('warn')});
+
+// Build 1.6.1 Adaptive Browser Brain
+(function adaptiveBrowserBrain(){
+  const root=document.body;
+  let lastBucket='';
+  function apply(){
+    const w=Math.max(document.documentElement.clientWidth||0,window.innerWidth||0);
+    const h=Math.max(document.documentElement.clientHeight||0,window.innerHeight||0);
+    const bucket=w<=350?'micro':w<=480?'phone':w<=760?'compact':w<=1100?'tablet':'desktop';
+    root.classList.remove('viewport-micro','viewport-phone','viewport-compact','viewport-tablet','viewport-desktop','orientation-portrait','orientation-landscape','pointer-coarse');
+    root.classList.add('viewport-'+bucket,'orientation-'+(h>=w?'portrait':'landscape'));
+    if(matchMedia('(pointer:coarse)').matches) root.classList.add('pointer-coarse');
+    if(lastBucket!==bucket){
+      lastBucket=bucket;
+      setTimeout(()=>{
+        try{if(window.DATA?.bill){if(document.querySelector('#overview')?.classList.contains('active')){drawNem();drawTesla()}if(document.querySelector('#audit')?.classList.contains('active'))drawDonut();if(document.querySelector('#flows')?.classList.contains('active'))drawEv()}}catch(e){}
+      },80);
+    }
+  }
+  apply();
+  let timer;
+  addEventListener('resize',()=>{clearTimeout(timer);timer=setTimeout(apply,120)},{passive:true});
+  addEventListener('orientationchange',()=>setTimeout(apply,180),{passive:true});
+  if(window.visualViewport) visualViewport.addEventListener('resize',()=>{clearTimeout(timer);timer=setTimeout(apply,120)},{passive:true});
+})();

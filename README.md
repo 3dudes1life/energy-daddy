@@ -1,6 +1,6 @@
-# Energy Daddy by DCW Grows — Build 1.6
+# Energy Daddy by DCW Grows — Build 1.6.1
 
-Energy Daddy is home energy intelligence, not another smart-home remote. Build 1.6 adds a deterministic Smart Core and a phone-first UI while keeping the Cloudflare Worker/D1/KV architecture from 1.5.1.
+Energy Daddy is home energy intelligence, not another smart-home remote. Build 1.6.1 adds a deterministic Smart Core and a phone-first UI while keeping the Cloudflare Worker/D1/KV architecture from 1.5.1.
 
 ## Cloud architecture
 - Worker: `energy-daddy-api`
@@ -20,4 +20,12 @@ Energy Daddy is home energy intelligence, not another smart-home remote. Build 1
 - Plant Daddy 8000-series remains reserved.
 
 ## Phone
-Open the deployed Cloudflare URL in Safari and use Share → Add to Home Screen. Build 1.6 includes a standalone web-app manifest and offline shell caching.
+Open the deployed Cloudflare URL in Safari and use Share → Add to Home Screen. Build 1.6.1 includes a standalone web-app manifest and offline shell caching.
+
+
+## 1.6.1 Mobile Rescue
+- Full phone-first responsive pass; no horizontal page scrolling.
+- Adaptive Browser Brain classifies viewport as micro/phone/compact/tablet/desktop and redraws charts on breakpoint/orientation changes.
+- Charts are constrained inside responsive shells and use smaller mobile heights.
+- Long source/runtime text, audit rows, cards, and provider grids can shrink/wrap instead of forcing page width.
+- 350px, 480px and 760px layouts are explicitly supported.

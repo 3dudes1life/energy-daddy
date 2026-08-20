@@ -1,4 +1,4 @@
-# Energy Daddy Build 1.6 — Smart Core + Pocket UI
+# Energy Daddy Build 1.6.1 — Smart Core + Pocket UI
 
 ## What changed
 - Mobile-first phone UI with a five-item bottom navigation and More sheet.
@@ -12,3 +12,11 @@
 
 ## Important limitation
 Until Enphase/SolarEdge or another live provider is connected, Smart Core learns from the bundled historical evidence plus Cloudflare telemetry already stored. It does not pretend static history is a live house feed.
+
+
+## 1.6.1 Mobile Rescue
+- Full phone-first responsive pass; no horizontal page scrolling.
+- Adaptive Browser Brain classifies viewport as micro/phone/compact/tablet/desktop and redraws charts on breakpoint/orientation changes.
+- Charts are constrained inside responsive shells and use smaller mobile heights.
+- Long source/runtime text, audit rows, cards, and provider grids can shrink/wrap instead of forcing page width.
+- 350px, 480px and 760px layouts are explicitly supported.

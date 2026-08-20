@@ -51,8 +51,8 @@
         <article class="card kpi"><span>Current month</span><strong id="month-charge">—</strong><small>after credits</small></article>
       </div>
       <div class="grid two">
-        <article class="card"><div class="card-head"><div><div class="eyebrow">NEM HISTORY</div><h2>What built the true-up</h2></div><span class="pill">Nov → Aug</span></div><canvas id="nemChart" height="220"></canvas><div class="chart-legend"><span>● Net kWh</span><span>— Running $ balance</span></div></article>
-        <article class="card"><div class="card-head"><div><div class="eyebrow">TESLA SITE SNAPSHOT</div><h2>What the house did today</h2></div><span class="pill" id="tesla-range">—</span></div><div class="flow-kpis"><div><span>Solar</span><strong id="t-solar">—</strong></div><div><span>Home</span><strong id="t-home">—</strong></div><div><span>Grid import</span><strong id="t-import">—</strong></div><div><span>Grid export</span><strong id="t-export">—</strong></div></div><canvas id="teslaChart" height="170"></canvas></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">NEM HISTORY</div><h2>What built the true-up</h2></div><span class="pill">Nov → Aug</span></div><div class="chart-shell"><canvas id="nemChart" height="220"></canvas></div><div class="chart-legend"><span>● Net kWh</span><span>— Running $ balance</span></div></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">TESLA SITE SNAPSHOT</div><h2>What the house did today</h2></div><span class="pill" id="tesla-range">—</span></div><div class="flow-kpis"><div><span>Solar</span><strong id="t-solar">—</strong></div><div><span>Home</span><strong id="t-home">—</strong></div><div><span>Grid import</span><strong id="t-import">—</strong></div><div><span>Grid export</span><strong id="t-export">—</strong></div></div><div class="chart-shell"><canvas id="teslaChart" height="170"></canvas></div></article>
       </div>
       <div class="grid three smart-strip">
         <article class="card smart-kpi"><span>Solar coverage</span><strong id="solarCoverage">—</strong><small>solar generated ÷ home use</small></article>
@@ -134,7 +134,7 @@
         <div class="node grid"><span>⌁</span><b>Grid</b><strong id="mapGrid">—</strong></div>
       </article>
       <div class="grid two">
-        <article class="card"><div class="eyebrow">EV CHARGER · EMPORIA</div><h2>July charging behavior</h2><div class="big-stat" id="evJuly">—</div><small class="muted">kWh in July</small><canvas id="evChart" height="210"></canvas></article>
+        <article class="card"><div class="eyebrow">EV CHARGER · EMPORIA</div><h2>July charging behavior</h2><div class="big-stat" id="evJuly">—</div><small class="muted">kWh in July</small><div class="chart-shell"><canvas id="evChart" height="210"></canvas></div></article>
         <article class="card"><div class="eyebrow">THE JULY 18 SPIKE</div><h2>We found the load</h2><div class="compare"><div><strong id="sdgePeak">—</strong><span>SDG&E highest-use hour</span></div><div><strong id="evPeak">—</strong><span>EV charger in same hour</span></div></div><div class="meter"><i id="evShare"></i></div><p id="evExplainer" class="note"></p></article>
       </div>
       <div class="grid two">
