@@ -1,49 +1,37 @@
-# Energy Daddy Build 1.4 — Cloudflare Ready
+# Energy Daddy 1.5 — Live Brain
 
-Build 1.4 keeps the current local-first dashboard working while adding a deployable Cloudflare architecture **without connecting or creating any provider accounts yet**.
+Energy Daddy is a local-first + Cloudflare home-energy intelligence platform.
 
-## Run the dashboard locally
+## Data strategy
+- **SolarEdge:** automatic 15-minute production poll when credentials are configured.
+- **Tesla:** periodic historical battery-impact evidence; no paid live polling by default.
+- **SDG&E:** delayed utility reconciliation / Green Button evidence.
+- **Emporia:** circuit/load attribution; current supplied dataset covers the EV charger.
 
-```bash
-./start-energy-daddy.sh
-```
+## Local ports
+- UI: 5050
+- Worker: 5051
+- Future Energy Daddy services: 5052–5099
+- Plant Daddy: 8000-series reserved and untouched.
 
-Open `http://localhost:5050`.
+## New Cloud endpoints
+- `GET /api/health`
+- `GET /api/live`
+- `GET /api/latest`
+- `GET /api/sources`
+- `GET /api/history`
+- `GET /api/events`
+- `POST /api/ingest` (requires `x-energy-key`)
+- `POST /api/event` (requires `x-energy-key`)
+- `POST /api/brain/run` (requires `x-energy-key`)
 
-Energy Daddy owns the 5000-series locally. Build 1.4 uses **5050** for the static/local UI and reserves **5051** for Wrangler local Worker development. Plant Daddy's 8000-series is untouched.
+## SolarEdge credentials
+Set `SOLAREDGE_SITE_ID` as a Worker variable and `SOLAREDGE_API_KEY` as a Worker secret. The app does not contain or expose either credential.
 
-## What's new
+## Deploy upgrade
+1. `npm install`
+2. `npx wrangler d1 migrations apply ENERGY_DB --remote`
+3. `npx wrangler deploy`
+4. Configure SolarEdge credentials only when ready.
 
-- Cloud Brain page with API auto-detection, readiness checks, source registry and memory/sync status.
-- IndexedDB local memory for imported files.
-- Cloud adapter that falls back safely to bundled/local data when `/api/health` is not present.
-- Cloudflare Worker API scaffold.
-- D1 canonical 15-minute energy ledger and event/forecast/import schemas.
-- KV current-state cache.
-- Cron heartbeat ready for future Tesla/SolarEdge/SDG&E provider adapters.
-- Same-origin static asset hosting through the Worker.
-- Ingest authentication design using a Worker secret (`INGEST_KEY`).
-- No provider credentials in browser JavaScript.
-
-## Cloudflare resources expected later
-
-- Worker: `energy-daddy-api`
-- D1: `energy-daddy-db`
-- KV: `energy-daddy-state`
-
-`wrangler.toml` contains placeholder IDs on purpose. Do not deploy it until those resources exist and the placeholders are replaced.
-
-## Future live adapters
-
-Provider adapters should execute server-side and normalize into `telemetry_15m`:
-
-- Tesla → site/home/solar/grid/battery live telemetry
-- SolarEdge → production telemetry
-- SDG&E Green Button → utility interval/settlement evidence
-- Emporia → circuit/mains load attribution when an approved ingestion path is selected
-
-Energy Daddy reconciles feeds only when timestamp, direction, metric and scope are compatible.
-
-## Privacy rule
-
-Energy Daddy analyzes measured behavior and supplied billing data. It does not surface, infer, or recommend disclosure of private hardware changes from utility paperwork.
+The existing D1/KV resource IDs are preserved in `wrangler.toml` for the Home Cloudflare account.

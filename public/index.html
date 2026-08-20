@@ -4,14 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#0a0a0b" />
-<title>Energy Daddy — Build 1.4</title>
+<title>Energy Daddy — Build 1.5</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div class="shell">
   <aside class="sidebar">
-    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.4 · CLOUD READY</span></div></div>
+    <div class="brand"><div class="mark">⚡</div><div><strong>Energy Daddy</strong><span>BUILD 1.5 · LIVE BRAIN</span></div></div>
     <nav>
       <button class="nav active" data-view="overview">◉ <span>Overview</span></button>
       <button class="nav" data-view="brain">✦ <span>Energy Brain</span></button>
@@ -19,7 +19,7 @@
       <button class="nav" data-view="lab">⌘ <span>What-If Lab</span></button>
       <button class="nav" data-view="flows">↔ <span>Energy Flow</span></button>
       <button class="nav" data-view="connections">⌁ <span>Connections</span></button>
-      <button class="nav" data-view="cloud">☁ <span>Cloud Brain</span></button>
+      <button class="nav" data-view="cloud">☁ <span>Live Brain</span></button>
     </nav>
     <div class="privacy">🔒 Local-first + Cloudflare-ready. Energy Daddy stays on 5050 locally; Plant Daddy’s 8000-series remains reserved.</div>
   </aside>
@@ -128,13 +128,13 @@
     </section>
 
     <section id="connections" class="view">
-      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.4 connections</h2></div></div>
+      <div class="section-title"><div><div class="eyebrow">DATA SOURCES</div><h2>Build 1.5 connections</h2></div></div>
       <div id="connectionsList" class="connections"></div>
-      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.4 will profile it locally, remember the import in IndexedDB, and stage it for future cloud sync.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
+      <article class="card uploader"><div><div class="eyebrow">LOCAL IMPORT LAB</div><h2>Inspect a CSV</h2><p class="muted">Drop a CSV and Build 1.5 will profile it locally, remember the import in IndexedDB, and stage it for future cloud sync.</p></div><label class="upload-btn">Choose CSV<input id="csvUpload" type="file" accept=".csv,text/csv" hidden /></label><pre id="uploadResult">Waiting for a file…</pre></article>
     </section>
 
     <section id="cloud" class="view">
-      <div class="section-title"><div><div class="eyebrow">CLOUDFLARE CONTROL PLANE</div><h2>Ready before we connect anything</h2><p class="muted">Build 1.4 can run completely local today, then switch to the same-origin Cloudflare API when deployed. No credentials are hard-coded in the browser.</p></div><span class="status ok" id="cloudModeBadge">● local-first</span></div>
+      <div class="section-title"><div><div class="eyebrow">LIVE BRAIN CONTROL PLANE</div><h2>Cloud connected · providers stay evidence-aware</h2><p class="muted">Build 1.5 uses the deployed Cloudflare brain when available, keeps secrets server-side, and falls back to bundled/local evidence when a provider is not connected.</p></div><span class="status ok" id="cloudModeBadge">● local-first</span></div>
       <div class="grid three">
         <article class="card brain-score"><div class="eyebrow">API MODE</div><strong id="cloudMode">LOCAL</strong><p id="cloudModeText">Using bundled evidence. Cloud API will be auto-detected when available.</p></article>
         <article class="card brain-score"><div class="eyebrow">SYNC QUEUE</div><strong id="syncQueue">0</strong><p>Local imports waiting to be normalized or synced later.</p></article>
@@ -143,6 +143,10 @@
       <div class="grid two">
         <article class="card"><div class="card-head"><div><div class="eyebrow">CLOUD READINESS</div><h2>Stack health</h2></div><button id="testCloud">Test API</button></div><div id="cloudChecks" class="quality-list"></div></article>
         <article class="card"><div class="card-head"><div><div class="eyebrow">SOURCE REGISTRY</div><h2>Live-feed plan</h2></div><span class="pill">secrets stay server-side</span></div><div id="sourceRegistry" class="source-registry"></div></article>
+      </div>
+      <div class="grid two">
+        <article class="card live-brain-card"><div class="card-head"><div><div class="eyebrow">LIVE SOURCE STATUS</div><h2>What is actually connected</h2></div><span class="status warn" id="livePollBadge">● waiting</span></div><div id="liveSourceStatus" class="live-source-status"></div></article>
+        <article class="card"><div class="card-head"><div><div class="eyebrow">LATEST CLOUD TELEMETRY</div><h2>Newest normalized readings</h2></div><span class="pill" id="cronLast">cron —</span></div><div id="cloudLatest" class="cloud-latest"></div><p class="note" id="cloudLatestNote">Waiting for the live brain…</p></article>
       </div>
       <article class="card"><div class="card-head"><div><div class="eyebrow">NORMALIZED ENERGY LEDGER</div><h2>One schema for every source</h2></div><span class="pill">15-minute canonical grain</span></div><div class="schema-grid"><div><b>timestamp</b><span>interval start/end</span></div><div><b>source</b><span>sdge / tesla / solaredge / emporia</span></div><div><b>metric</b><span>grid_import / solar / home / battery / circuit</span></div><div><b>energy_wh</b><span>normalized watt-hours</span></div><div><b>quality</b><span>measured / derived / estimated</span></div><div><b>scope</b><span>site / inverter / circuit / utility meter</span></div></div><p class="note">This prevents false comparisons: two feeds are only reconciled when their timestamp, direction and measurement scope actually match.</p></article>
       <div class="grid two">

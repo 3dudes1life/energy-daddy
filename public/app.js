@@ -5,7 +5,7 @@ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 let DATA={},METRICS={};
 async function load(){
   const names=['bill','tesla','emporia','solaredge'];
-  const all=await Promise.all(names.map(x=>fetch(`data/${x}.json?v=14`).then(r=>{if(!r.ok)throw new Error(`${x}: ${r.status}`);return r.json()})));
+  const all=await Promise.all(names.map(x=>fetch(`data/${x}.json?v=15`).then(r=>{if(!r.ok)throw new Error(`${x}: ${r.status}`);return r.json()})));
   DATA=Object.fromEntries(names.map((n,i)=>[n,all[i]]));
   METRICS=analyze(); render(); initLocalMemory(); probeCloud();
 }
@@ -183,49 +183,67 @@ function getInsights(){const b=DATA.bill,m=METRICS;return [
 function renderInsights(){const arr=getInsights().sort((a,b)=>a.p-b.p);$('#insightList').innerHTML=arr.map(i=>`<article class="card insight"><span class="priority">P${i.p}</span><div class="eyebrow">SMART FINDING</div><h3>${i.t}</h3><p>${i.d}</p></article>`).join('')}
 function renderConnections(){const rows=[['⚡','SDG&E','Bill + NEM + TOU','Loaded'],['▰','Tesla Powerwall','5-minute site telemetry','Loaded'],['🔌','Emporia','EV circuit export','Loaded'],['☀️','SolarEdge','Production snapshot','Partial'],['◉','Enphase Enlighten','Possible second solar view','Not connected'],['⌂','Nest / HVAC','Future load context','Not connected'],['🚘','Tesla vehicle','Future charging context','Not connected'],['☁️','Ambient Weather','Future weather correlation','Not connected']];$('#connectionsList').innerHTML=rows.map(r=>`<article class="card connection"><div class="icon">${r[0]}</div><div class="meta"><b>${r[1]}</b><span>${r[2]}</span></div><span class="tag ${r[3]==='Not connected'?'off':''}">${r[3]}</span></article>`).join('')}
 
-const CloudBrain={mode:'local',health:null,queue:0,memory:0,lastError:null};
+const CloudBrain={mode:'local',health:null,live:null,queue:0,memory:0,lastError:null};
 function openEnergyDB(){return new Promise((resolve,reject)=>{const req=indexedDB.open('energy-daddy-local',1);req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains('imports'))db.createObjectStore('imports',{keyPath:'id'});if(!db.objectStoreNames.contains('queue'))db.createObjectStore('queue',{keyPath:'id'});};req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)})}
 async function dbCount(store){try{const db=await openEnergyDB();return await new Promise((resolve,reject)=>{const tx=db.transaction(store,'readonly'),r=tx.objectStore(store).count();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}catch{return 0}}
 async function saveLocalImport(record){const db=await openEnergyDB();await new Promise((resolve,reject)=>{const tx=db.transaction(['imports','queue'],'readwrite');tx.objectStore('imports').put(record);tx.objectStore('queue').put({id:record.id,type:'import',created_at:new Date().toISOString(),payload:{id:record.id,filename:record.filename,row_count:record.row_count,range_start:record.range_start,range_end:record.range_end}});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});await initLocalMemory()}
 async function initLocalMemory(){CloudBrain.memory=await dbCount('imports');CloudBrain.queue=await dbCount('queue');if($('#memoryCount'))$('#memoryCount').textContent=CloudBrain.memory;if($('#syncQueue'))$('#syncQueue').textContent=CloudBrain.queue}
+function apiBase(){
+ const q=new URLSearchParams(location.search).get('api');
+ if(q) return q.replace(/\/$/,'');
+ if(location.hostname==='localhost' && location.port==='5050') return 'http://localhost:5051';
+ return '';
+}
 async function probeCloud(){
- try{const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),1800);const r=await fetch('/api/health',{cache:'no-store',signal:ctl.signal});clearTimeout(timer);if(!r.ok)throw new Error(`HTTP ${r.status}`);const h=await r.json();CloudBrain.health=h;CloudBrain.mode=h.ok?'cloud':'degraded';CloudBrain.lastError=null}
- catch(err){CloudBrain.mode='local';CloudBrain.health=null;CloudBrain.lastError=String(err?.message||err)}
+ try{
+  const base=apiBase(),ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),3000);
+  const [hr,lr]=await Promise.all([fetch(`${base}/api/health`,{cache:'no-store',signal:ctl.signal}),fetch(`${base}/api/live`,{cache:'no-store',signal:ctl.signal})]);
+  clearTimeout(timer);if(!hr.ok)throw new Error(`Health HTTP ${hr.status}`);if(!lr.ok)throw new Error(`Live HTTP ${lr.status}`);
+  const h=await hr.json(),live=await lr.json();CloudBrain.health=h;CloudBrain.live=live;CloudBrain.mode=h.ok?'cloud':'degraded';CloudBrain.lastError=null
+ } catch(err){CloudBrain.mode='local';CloudBrain.health=null;CloudBrain.live=null;CloudBrain.lastError=String(err?.message||err)}
  renderCloud();
 }
+function fmtAge(ts){if(!ts)return 'never';const m=Math.max(0,Math.round((Date.now()-new Date(ts))/60000));return m<1?'just now':m<60?`${m}m ago`:`${Math.round(m/60)}h ago`}
 function renderCloud(){
- if(!$('#cloudMode'))return;const isCloud=CloudBrain.mode==='cloud';
+ if(!$('#cloudMode'))return;const isCloud=CloudBrain.mode==='cloud',live=CloudBrain.live;
  $('#cloudMode').textContent=isCloud?'CLOUD':'LOCAL';
- $('#cloudModeText').textContent=isCloud?'Cloudflare Worker + D1 + KV responded. Bundled data remains available as fallback.':'Bundled/local evidence is active. The app will auto-switch when the same-origin Cloudflare API exists.';
+ $('#cloudModeText').textContent=isCloud?'Cloudflare Worker + D1 + KV responded. Live Brain will only call providers that have approved server-side credentials.':'Bundled/local evidence is active. On localhost:5050 Energy Daddy will look for the Worker on localhost:5051.';
  $('#cloudModeBadge').textContent=isCloud?'● cloud API healthy':'● local-first';
  $('#syncQueue').textContent=CloudBrain.queue;$('#memoryCount').textContent=CloudBrain.memory;
  const checks=[
-  ['Frontend','ready','Static app is Cloudflare Worker Assets compatible.'],
-  ['Worker API',isCloud?'ready':'staged',isCloud?'Health endpoint responded.':'Scaffold is included; no deployment required yet.'],
-  ['D1 ledger',CloudBrain.health?.d1?'ready':'staged','Canonical 15-minute schema + migrations included.'],
-  ['KV current state',CloudBrain.health?.kv?'ready':'staged','Latest-state cache binding is defined.'],
-  ['Secrets','safe','Provider credentials are server-side Worker secrets only.'],
-  ['Provider polling','planned','Adapters intentionally remain disconnected until credentials are approved.']
+  ['Frontend','ready','Static app is deployed with the Worker and remains locally runnable on 5050.'],
+  ['Worker API',isCloud?'ready':'staged',isCloud?'Health + Live endpoints responded.':'Start Wrangler on 5051 to test locally.'],
+  ['D1 ledger',CloudBrain.health?.d1?'ready':'staged','Canonical 15-minute telemetry is the durable evidence ledger.'],
+  ['KV current state',CloudBrain.health?.kv?'ready':'staged','Provider freshness + current state live here.'],
+  ['Tesla live polling','disabled','$0 strategy: periodic historical evidence only unless you later decide paid Tesla telemetry is worth it.'],
+  ['SolarEdge production','ready','Build 1.5 can poll SolarEdge every 15 minutes once SITE ID + API key are configured server-side.']
  ];
  $('#cloudChecks').innerHTML=checks.map(([n,c,d])=>`<div class="quality"><b>${n}</b><span class="q ${c==='ready'||c==='safe'?'high':'partial'}">${c}</span><small>${d}</small></div>`).join('');
- const sources=[
-  ['SDG&E','Utility settlement','15-min Green Button','planned'],
-  ['Tesla','Site + Powerwall','live telemetry','planned'],
-  ['SolarEdge','Solar production','production telemetry','planned'],
-  ['Emporia','Circuit attribution','EV loaded · mains later','partial']
+ const src=live?.sources||[];
+ const byId=Object.fromEntries(src.map(x=>[x.id,x]));
+ const plan=[
+  ['solaredge-site','SolarEdge','Solar production','15-minute live production'],
+  ['tesla-site','Tesla','Battery impact','historical / periodic — no paid live polling'],
+  ['sdge-meter','SDG&E','Utility settlement','delayed reconciliation, not instant'],
+  ['emporia-ev','Emporia','Load attribution','EV export today · bridge later']
  ];
- $('#sourceRegistry').innerHTML=sources.map(([p,r,c,st])=>`<div class="source-row"><div><b>${p}</b><small>${r}</small></div><span>${c}</span><em class="${st}">${st}</em></div>`).join('');
+ $('#sourceRegistry').innerHTML=plan.map(([id,p,r,c])=>{const x=byId[id],st=x?.runtime?.status||x?.status||'planned';return `<div class="source-row"><div><b>${p}</b><small>${r}</small></div><span>${c}</span><em class="${st}">${st.replaceAll('_',' ')}</em></div>`}).join('');
+ if($('#liveSourceStatus')) $('#liveSourceStatus').innerHTML=plan.map(([id,p,r])=>{const x=byId[id],rt=x?.runtime||{},st=rt.status||x?.status||'planned';const msg=rt.message||'No runtime status yet.';const detail=rt.last_seen_at?` · ${fmtAge(rt.last_seen_at)}`:'';return `<div class="live-provider"><div><b>${p}</b><small>${msg}${detail}</small></div><em class="${st}">${st.replaceAll('_',' ')}</em></div>`}).join('');
+ const latest=live?.latest||[];
+ if($('#cloudLatest')) $('#cloudLatest').innerHTML=latest.length?latest.slice(0,10).map(r=>`<div class="cloud-reading"><b>${r.source_id} · ${r.metric}</b><strong>${r.power_avg_w!=null?`${num(r.power_avg_w/1000,2)} kW`:`${num(r.energy_wh/1000,2)} kWh`}</strong><small>${fmtAge(r.interval_start)} · ${r.quality} · ${r.scope}</small></div>`).join(''):'<div class="muted">No cloud telemetry yet. This is correct until a live source or authenticated import writes data.</div>';
+ if($('#cronLast')) $('#cronLast').textContent=`cron ${live?.cron_last?fmtAge(live.cron_last):'—'}`;
+ if($('#livePollBadge')){const solar=byId['solaredge-site']?.runtime?.status;$('#livePollBadge').textContent=solar==='live'?'● SolarEdge live':isCloud?'● brain online':'● local';$('#livePollBadge').className=`status ${solar==='live'?'ok':'warn'}`}
+ if($('#cloudLatestNote')) $('#cloudLatestNote').textContent=latest.length?'Newest canonical readings from D1. Energy Daddy keeps source/metric/scope attached so unlike measurements are never silently merged.':'The cloud brain is healthy; provider data is simply not connected yet.';
  const events=[
   ['✓','Explained event','July 18 midnight demand spike is mostly EV charging.'],
-  ['~','Reconciliation rule','Solar feeds stay separate until scope and intervals match.'],
-  ['→','Future live event','When grid import jumps, compare EV/HVAC/battery states before flagging it.'],
-  ['⚠','Future audit event','Only call an SDG&E discrepancy after aligned 15-minute meter evidence disagrees.']
+  ['$0','Tesla strategy','Battery history stays periodic/manual; live paid Tesla polling is intentionally disabled.'],
+  ['☀','SolarEdge strategy','Production becomes the first automatic feed once its API credentials are added as Worker secrets.'],
+  ['⚠','Utility audit rule','Only call an SDG&E discrepancy after aligned interval evidence actually disagrees.']
  ];
  $('#eventBrainPreview').innerHTML=events.map(([p,t,d])=>`<div class="action"><span>${p}</span><div><b>${t}</b><p>${d}</p></div></div>`).join('');
 }
-
 $$('.nav').forEach(b=>b.onclick=()=>{$$('.nav,.view').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#'+b.dataset.view).classList.add('active');$('#page-title').textContent=b.querySelector('span').textContent;setTimeout(()=>{if(b.dataset.view==='overview'){drawNem();drawTesla()}if(b.dataset.view==='audit')drawDonut();if(b.dataset.view==='flows')drawEv()},10)});
-$('#refresh').onclick=()=>load(); if($('#testCloud'))$('#testCloud').onclick=()=>probeCloud();
+$('#refresh').onclick=()=>load(); if($('#testCloud'))$('#testCloud').onclick=()=>probeCloud(); setInterval(()=>{if(document.visibilityState==='visible')probeCloud()},60000);
 $('#csvUpload').addEventListener('change',async ev=>{const f=ev.target.files[0];if(!f)return;const text=await f.text(),lines=text.trim().split(/\r?\n/),headers=(lines[0]||'').split(',');const rows=lines.slice(1,Math.min(lines.length,501)).map(l=>l.split(','));const numeric=headers.map((h,i)=>{const vals=rows.map(r=>Number(r[i])).filter(Number.isFinite);return vals.length>Math.max(3,rows.length*.7)?`${h}: numeric (${vals.length} sampled)`:null}).filter(Boolean);let dates=[];rows.forEach(r=>r.forEach(v=>{const d=new Date(v);if(v&&/[-/:T]/.test(v)&&!isNaN(d))dates.push(d)}));dates.sort((a,b)=>a-b);const id=`${f.name}:${f.size}:${f.lastModified}`;await saveLocalImport({id,filename:f.name,size:f.size,row_count:Math.max(0,lines.length-1),headers,range_start:dates[0]?.toISOString()||null,range_end:dates.at(-1)?.toISOString()||null,imported_at:new Date().toISOString()});$('#uploadResult').textContent=`${f.name}\n${lines.length-1} data rows\n${headers.length} columns\nColumns: ${headers.join(' · ')}\n${dates.length?`Time coverage sampled: ${dates[0].toLocaleString()} → ${dates.at(-1).toLocaleString()}\n`:''}${numeric.length?`Likely numeric fields:\n- ${numeric.join('\n- ')}\n`:''}\nSaved to local Energy Daddy memory and staged for future cloud sync. File contents were not uploaded.`});
 window.addEventListener('resize',()=>{if(DATA.bill){if($('#overview').classList.contains('active')){drawNem();drawTesla()}if($('#audit').classList.contains('active'))drawDonut();if($('#flows').classList.contains('active'))drawEv()}});
 load().catch(err=>{console.error(err);document.querySelector('.status.ok').textContent='● Data load error';document.querySelector('.status.ok').classList.add('warn')});

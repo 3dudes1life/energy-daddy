@@ -1,6 +1,6 @@
-# Local port map
+# Local port ownership
 
-- Energy Daddy static/local UI: **5050**
-- Energy Daddy Wrangler local Worker: **5051**
-- Energy Daddy future local services: **5052–5099**
-- Plant Daddy: **8000-series RESERVED — DO NOT USE**
+- 5050 — Energy Daddy UI
+- 5051 — Energy Daddy Worker emulator
+- 5052–5099 — reserved for future Energy Daddy services
+- 8000–8999 — Plant Daddy reserved; never reuse for Energy Daddy
