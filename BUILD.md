@@ -19,3 +19,10 @@
 ## Deliberately unresolved
 
 The Tesla site-meter solar total and SolarEdge snapshot do not match. Build 1 treats that as a metering-scope question, not an error. Possible causes include separate arrays, different measurement boundaries, timing/cadence differences, or partial system reporting.
+
+
+## Local service ports
+
+- Energy Daddy web UI: `5050`
+- Reserved Energy Daddy range: `5050–5099`
+- `8000`-series ports are explicitly off-limits because Plant Daddy already uses local services there.

@@ -19,10 +19,14 @@ Python is enough:
 
 ```bash
 cd energy-daddy-build1
-python3 -m http.server 8080
+python3 -m http.server 5050
 ```
 
-Then open `http://localhost:8080`.
+Then open `http://localhost:5050`.
+
+## Local port namespace
+
+Energy Daddy owns the **5050–5099** local-development range. Build 1 uses **5050**. Do not use the 8000-series; those ports are reserved for Plant Daddy and its local services.
 
 ## GitHub Pages
 
