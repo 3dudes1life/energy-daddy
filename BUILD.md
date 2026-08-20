@@ -1,14 +1,17 @@
-# Energy Daddy — Build 1.2
+# Energy Daddy — Build 1.3
 
-Local-only intelligence update. No Cloudflare resources, external APIs, credentials, or live connections are created in this build.
+Smarter local-only brain. No Cloudflare/API setup required.
 
-## New in 1.2
-- Latest-telemetry panel with TOU-aware narrative
-- Auto-ranked Daily Brief
-- Tesla site-flow physics reconciliation score
-- What-If Lab for monthly net-grid improvements
-- Peak Shield estimate using latest Powerwall SOC and observed evening load
-- Anomaly engine with classified vs unexplained events
-- Solar peak vs SDG&E registered-size comparison
-- Smarter, explicitly directional scenario math with uncertainty language
-- Keeps Energy Daddy on port 5050; Plant Daddy 8000-series remains reserved
+## Added
+- Redesigned Bill Audit with current-month vs accumulated-balance separation
+- Balance anatomy stack + bucket percentages
+- Month-by-month NEM ledger and balance deltas
+- Evidence Board: explained / partial / missing
+- EV-TOU-5 charger timing analysis across the supplied Emporia history
+- On-peak Tesla behavior metrics and observed solar-dominance metric
+- Local CSV import history retained in browser localStorage
+- Removed utility-system-size mismatch warnings from customer-facing intelligence
+- Source-scope guard: Tesla and SolarEdge remain separate until measurement scope is known
+
+## Port
+Energy Daddy remains on 5050. Plant Daddy 8000-series ports are reserved.

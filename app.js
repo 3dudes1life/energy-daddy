@@ -5,7 +5,7 @@ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 let DATA={},METRICS={};
 async function load(){
   const names=['bill','tesla','emporia','solaredge'];
-  const all=await Promise.all(names.map(x=>fetch(`data/${x}.json?v=12`).then(r=>{if(!r.ok)throw new Error(`${x}: ${r.status}`);return r.json()})));
+  const all=await Promise.all(names.map(x=>fetch(`data/${x}.json?v=13`).then(r=>{if(!r.ok)throw new Error(`${x}: ${r.status}`);return r.json()})));
   DATA=Object.fromEntries(names.map((n,i)=>[n,all[i]]));
   METRICS=analyze(); render();
 }
@@ -36,7 +36,16 @@ function analyze(){
  const batteryKwhNominal=13.5, usableKwh=latestSoc==null?0:batteryKwhNominal*latestSoc/100;
  const shieldHours=eveningHome?usableKwh/eveningHome:0;
  const ytdNetKwh=b.months.reduce((a,r)=>a+Number(r.net_kwh||0),0);
- return {gridImport,gridExport,batteryDischarge,batteryCharge,solar,home,solarCoverage,gridIndependence,avgDelta,monthsRemaining,nemForecast,daysLeft,nonEnergy,solarMismatch,solarMismatchPct,peakShare,pressure,timing,meterAgreement,latest,latestSoc,solarPeak,homePeak,physicsMae,eveningHome,shieldHours,ytdNetKwh};
+ const solarDominant=ser.length?ser.filter(r=>Number(r.solar||0)>Number(r.home||0)&&Number(r.solar||0)>0.2).length/ser.length*100:0;
+ const onPeakSeries=ser.filter(r=>touStateAt(r.t)==='ON-PEAK');
+ const onPeakImport=onPeakSeries.reduce((a,r)=>a+Math.max(0,Number(r.grid||0))*cadence,0);
+ const onPeakExport=onPeakSeries.reduce((a,r)=>a+Math.max(0,-Number(r.grid||0))*cadence,0);
+ const gridNeutralPeakPct=onPeakSeries.length?onPeakSeries.filter(r=>Math.abs(Number(r.grid||0))<0.25).length/onPeakSeries.length*100:0;
+ const evTou={on:0,off:0,super:0,total:0};
+ (e.hourly||[]).forEach(r=>{const k=Math.max(0,Number(r.kwh||0)); if(!k)return; evTou.total+=k; const st=touStateAt(r.t); if(st==='ON-PEAK')evTou.on+=k; else if(st==='SUPER OFF-PEAK')evTou.super+=k; else evTou.off+=k;});
+ const evPreferredPct=evTou.total?evTou.super/evTou.total*100:0;
+ const energyShare=b.trueup.account_balance?b.trueup.nem_balance/b.trueup.account_balance*100:0;
+ return {gridImport,gridExport,batteryDischarge,batteryCharge,solar,home,solarCoverage,gridIndependence,avgDelta,monthsRemaining,nemForecast,daysLeft,nonEnergy,solarMismatch,solarMismatchPct,peakShare,pressure,timing,meterAgreement,latest,latestSoc,solarPeak,homePeak,physicsMae,eveningHome,shieldHours,ytdNetKwh,solarDominant,onPeakImport,onPeakExport,gridNeutralPeakPct,evTou,evPreferredPct,energyShare};
 }
 function render(){
  const {bill:b,tesla:t,emporia:e}=DATA,m=METRICS;
@@ -52,18 +61,18 @@ function render(){
  $('#gridBehaviorText').textContent=m.gridExport>m.gridImport?`The supplied Tesla day is a net-export day by about ${num(m.gridExport-m.gridImport)} kWh through the end of the export.`:`The supplied Tesla day is a net-import day by about ${num(m.gridImport-m.gridExport)} kWh through the end of the export.`;
  $('#evJuly').textContent=num(e.summary.july_kwh,1); $('#sdgePeak').textContent=`${num(b.current_period.highest_demand_kw,1)} kW`; $('#evPeak').textContent=`${num(e.summary.july18_midnight_kwh,2)} kWh`;
  $('#evShare').style.width=Math.min(100,m.peakShare)+'%'; $('#evExplainer').textContent=`The EV charger explains about ${num(m.peakShare,0)}% of SDG&E's 14.4 kW highest-use hour. The remaining ~${num(b.current_period.highest_demand_kw-e.summary.july18_midnight_kwh,1)} kW came from other loads.`;
- renderBrain(); renderLiveBrain(); renderLab(); drawNem(); drawTesla(); drawEv(); drawDonut(); renderTou(); renderAudit(); renderInsights(); renderConnections();
+ renderBrain(); renderLiveBrain(); renderLab(); drawNem(); drawTesla(); drawEv(); drawDonut(); renderTou(); renderAudit(); renderInsights(); renderConnections(); renderEvTou();
  const winterPeak=Math.max(...b.months.map(x=>x.balance));
  $('#topInsight').innerHTML=`<h3>✦ Smart finding: this is a winter debt problem, not a broken-solar-looking summer.</h3><p>The NEM energy balance peaked at <b>${money(winterPeak)}</b> in March. Recent months have generally pushed it down. On the supplied Tesla day, solar generated <b>${num(m.solar)} kWh</b> against <b>${num(m.home)} kWh</b> of home use and the site exported more energy than it imported.</p>`;
 }
 function renderBrain(){const {bill:b,solaredge:s}=DATA,m=METRICS;
  $('#pressureScore').textContent=`${m.pressure}/100`; $('#pressureText').textContent=`Current account balance is ${money(b.trueup.account_balance)} with ${m.daysLeft} days until true-up. Energy-only trajectory is improving, but non-energy buckets already total ${money(m.nonEnergy)}.`;
  $('#timingScore').textContent=`${m.timing}/100`; $('#timingText').textContent=b.current_period.on_peak_kwh<0?`Strong: this bill shows net export during 4–9 PM on-peak. The big EV spike happened at midnight, inside super-off-peak.`:`On-peak imports are still costing leverage; shift flexible loads where possible.`;
- $('#meterScore').textContent=`${m.meterAgreement}/100`; $('#meterText').textContent=`Tesla and SolarEdge differ by ${num(m.solarMismatch)} kWh on the supplied day. Until scope is confirmed, Energy Daddy keeps them as separate meters.`;
+ $('#meterScore').textContent=`${m.meterAgreement}/100`; $('#meterText').textContent=`Cross-source confidence is limited because Tesla and SolarEdge are different evidence feeds. Energy Daddy refuses to merge unlike scopes until interval/source mapping is available.`;
  const actions=[
   ['P1','Import SDG&E Green Button','This unlocks 15-minute meter reconciliation and a real tariff audit instead of bill-level inference.'],
   ['P1','Add full Emporia mains/circuits','EV is solved. Whole-home mains let us attribute the rest of the load and compare panel-side consumption against Tesla.'],
-  ['P1','Confirm solar topology',`SDG&E registers 6.86 kW, Tesla observed ${num(m.solar)} kWh today, and SolarEdge reports ${s.reported_today_kwh} kWh. We need to label which array/meter each source represents.`],
+  ['P1','Map solar source scope',`Tesla integrated ${num(m.solar)} kWh on the supplied day while SolarEdge's shared snapshot reports ${s.reported_today_kwh} kWh. Label what each feed measures before comparing totals.`],
   ['P2','Add battery settings','Reserve %, grid-charging permission and operating mode would let the brain score battery behavior against EV-TOU-5.'],
   ['P2','Add HVAC + weather','Then we can learn heat→HVAC demand, pre-cooling value, and abnormal usage days.']
  ]; $('#actionCount').textContent=`${actions.length} actions`; $('#actionList').innerHTML=actions.map(a=>`<div class="action"><span>${a[0]}</span><div><b>${a[1]}</b><p>${a[2]}</p></div></div>`).join('');
@@ -107,13 +116,12 @@ function renderLab(){
  $('#shieldSoc').textContent=m.latestSoc==null?'—':`${num(m.latestSoc,0)}%`; $('#shieldHours').textContent=m.shieldHours?`${num(m.shieldHours,1)} hr`:'—'; $('#shieldMeter').style.width=`${clamp((m.latestSoc||0),0,100)}%`;
  $('#shieldText').textContent=`Using a 13.5 kWh nominal Powerwall assumption and the supplied day's average 4–9 PM home load of ${num(m.eveningHome,1)} kW, the latest observed state of charge implies about ${num(m.shieldHours,1)} hours of rough load coverage. This is a planning estimate, not a battery guarantee.`;
  const anomalies=[];
- anomalies.push(['P1','Registered solar size mismatch',`SDG&E shows ${b.registered_system_kw} kW. Tesla's observed solar peak reached ${num(m.solarPeak,1)} kW. Verify whether the registered size reflects AC rating, one array, or an older interconnection record.`]);
  if(m.solarMismatchPct>20)anomalies.push(['P1','Solar sources disagree',`SolarEdge's shared daily total and Tesla's integrated supplied day differ by ${num(m.solarMismatch)} kWh (${num(m.solarMismatchPct,0)}%). Keep them separate until topology is labeled.`]);
  anomalies.push(['P2','July 18 demand event explained',`Emporia EV charging accounted for about ${num(m.peakShare,0)}% of SDG&E's highest-use hour, so this is classified rather than unexplained.`]);
  if(m.physicsMae>0.3)anomalies.push(['P2','Tesla site-flow equation drift',`Average equation residual is ${num(m.physicsMae,2)} kW.`]);
  $('#anomalyList').innerHTML=anomalies.map(a=>`<div class="action"><span>${a[0]}</span><div><b>${a[1]}</b><p>${a[2]}</p></div></div>`).join('');
- $('#solarPeak').textContent=`${num(m.solarPeak,1)} kW`; const pct=b.registered_system_kw?m.solarPeak/b.registered_system_kw*100:0; $('#solarPeakPct').textContent=`${num(pct,0)}%`;
- $('#solarPerfText').textContent=pct>100?`Observed Tesla solar power exceeded the ${b.registered_system_kw} kW system size listed on the utility bill. That does not automatically mean anything is wrong; AC/DC ratings, multiple systems, clipping, and registration scope can differ. Energy Daddy flags it for topology verification.`:`Observed peak was below the registered utility size on this supplied day.`;
+ $('#solarPeak').textContent=`${num(m.solarPeak,1)} kW`; $('#solarDominantPct').textContent=`${num(m.solarDominant,0)}%`;
+ $('#solarPerfText').textContent=`On the supplied Tesla day, solar output exceeded instantaneous home demand in ${num(m.solarDominant,0)}% of samples. Peak observed production reached ${num(m.solarPeak,1)} kW. This view intentionally judges observed behavior only, not utility paperwork or hardware inventory.`;
 }
 function canvasSetup(id){const c=$(id),dpr=devicePixelRatio||1,w=c.clientWidth,h=+c.getAttribute('height');c.width=w*dpr;c.height=h*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);return {c,x,w,h}}
 function drawNem(){const {x,w,h}=canvasSetup('#nemChart'),m=DATA.bill.months,p=26; x.clearRect(0,0,w,h);const maxK=Math.max(...m.map(d=>Math.abs(d.net_kwh))),maxB=Math.max(...m.map(d=>d.balance)),step=(w-p*2)/(m.length-1);x.strokeStyle='#292930';for(let i=0;i<4;i++){let y=p+i*(h-p*2)/3;x.beginPath();x.moveTo(p,y);x.lineTo(w-p,y);x.stroke()}m.forEach((d,i)=>{const barH=Math.abs(d.net_kwh)/maxK*58,xx=p+i*step,base=h-46;x.fillStyle=d.net_kwh<0?'#48d17a':'#8a7cff';x.fillRect(xx-7,d.net_kwh<0?base:base-barH,14,barH);x.fillStyle='#777780';x.font='9px sans-serif';x.textAlign='center';x.fillText(new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{month:'short'}),xx,h-15)});x.strokeStyle='#64d8ff';x.lineWidth=2.5;x.beginPath();m.forEach((d,i)=>{const xx=p+i*step,yy=p+(1-d.balance/maxB)*(h-85);i?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke()}
@@ -121,17 +129,53 @@ function drawTesla(){const {x,w,h}=canvasSetup('#teslaChart'),s=DATA.tesla.serie
 function drawEv(){const {x,w,h}=canvasSetup('#evChart'),d=DATA.emporia.daily,p=18,max=Math.max(...d.map(v=>v.kwh));x.clearRect(0,0,w,h);d.forEach((r,i)=>{const xx=p+i*(w-p*2)/d.length,bh=r.kwh/max*(h-45);x.fillStyle=r.kwh>0?'#8a7cff':'#24242a';x.fillRect(xx,h-22-bh,Math.max(2,(w-p*2)/d.length-2),bh)});x.fillStyle='#777780';x.font='9px sans-serif';x.textAlign='left';x.fillText('Jul 1',p,h-7);x.textAlign='right';x.fillText('Aug 19',w-p,h-7)}
 function drawDonut(){const {x,w,h}=canvasSetup('#donut'),b=DATA.bill.trueup,vals=[b.nem_balance,b.non_bypassable_charges,b.other_meter_charges_payments],cols=['#8a7cff','#64d8ff','#ffb84d'],sum=vals.reduce((a,b)=>a+b,0);x.clearRect(0,0,w,h);let a=-Math.PI/2;vals.forEach((v,i)=>{const z=v/sum*Math.PI*2;x.beginPath();x.strokeStyle=cols[i];x.lineWidth=24;x.arc(w/2,h/2,78,a,a+z);x.stroke();a+=z});$('#donutTotal').textContent=money(sum);$('#breakdown').innerHTML=[['NEM energy',vals[0]],['Non-bypassable',vals[1]],['Other meter',vals[2]]].map(r=>`<div class="break-row"><i class="dot"></i><small>${r[0]}</small><b>${money(r[1])} · ${num(r[1]/sum*100,0)}%</b></div>`).join('')}
 function renderTou(){const b=DATA.bill.current_period,rows=[['On-peak',b.on_peak_kwh],['Off-peak',b.off_peak_kwh],['Super off-peak',b.super_off_peak_kwh]],max=Math.max(...rows.map(r=>Math.abs(r[1])));$('#touBars').innerHTML=rows.map(([n,v])=>`<div class="tou-row"><b>${n}</b><div class="track"><i class="fill ${v<0?'export':''}" style="width:${Math.abs(v)/max*100}%"></i></div><strong>${v>0?'+':''}${v} kWh</strong></div>`).join('')}
-function renderAudit(){const b=DATA.bill,e=DATA.emporia.summary,m=METRICS;const items=[
- ['good','Current-month bill is tiny',`Electric service was ${money(b.current_period.electric_service)} and the climate credit reduced current charges to ${money(b.current_period.current_charges)}.`],
- ['good','Winter drove the running NEM balance','The NEM balance climbed to $684.16 by March, then spring/summer export credits pulled it down to $414.17 in July.'],
- ['good','July 18 demand spike identified',`Emporia shows ${num(e.july18_midnight_kwh,2)} kWh on the EV charger from midnight–1 AM, explaining about ${num(m.peakShare,0)}% of SDG&E's 14.4 kW peak hour.`],
- ['warn','Registered solar system size needs verification',`The bill lists a 6.86 kW NEM system. Verify whether that represents all panels, one array, or the original permitted system.`],
- ['warn','Solar source scope mismatch',`Tesla integrates to ${num(m.solar,1)} kWh solar through the supplied day while SolarEdge reports ${DATA.solaredge.reported_today_kwh} kWh. Difference: ${num(m.solarMismatch,1)} kWh.`]
- ];$('#auditTrail').innerHTML=items.map(([c,h,p])=>`<div class="time-item ${c}"><b>${h}</b><span>${p}</span></div>`).join('')}
+function renderAudit(){
+ const b=DATA.bill,e=DATA.emporia.summary,m=METRICS;
+ $('#auditMonth').textContent=money(b.current_period.current_charges);
+ $('#auditBalance').textContent=money(b.trueup.account_balance);
+ $('#energyShare').textContent=`${num(m.energyShare,0)}% energy balance`;
+ const buckets=[
+  ['NEM energy',b.trueup.nem_balance,'Energy bought/credited across the settlement year','energy'],
+  ['Non-bypassable',b.trueup.non_bypassable_charges,'Charges that generation credits do not simply erase','nbc'],
+  ['Other meter',b.trueup.other_meter_charges_payments,'Other accumulated meter charges/payments on the account','other']
+ ];
+ $('#auditBuckets').innerHTML=buckets.map(([n,v,d,c])=>`<article class="card audit-bucket ${c}"><span>${n}</span><strong>${money(v)}</strong><small>${d}</small><b>${num(v/b.trueup.account_balance*100,0)}%</b></article>`).join('');
+ $('#balanceStack').innerHTML=buckets.map(([n,v,d,c])=>`<i class="${c}" title="${n}: ${money(v)}" style="width:${v/b.trueup.account_balance*100}%"></i>`).join('');
+ $('#balanceCallout').innerHTML=`<b>Key point:</b> ${money(m.nonEnergy)} — about ${num(m.nonEnergy/b.trueup.account_balance*100,0)}% of the current balance — is outside the running NEM-energy bucket. That is why staring only at net kWh cannot explain the whole ${money(b.trueup.account_balance)}.`;
+ const peakNet=b.current_period.on_peak_kwh, superNet=b.current_period.super_off_peak_kwh;
+ $('#touSummary').innerHTML=`<div><b>${peakNet<0?'✓ Net exporter':'! Net importer'} during 4–9 PM</b><span>${Math.abs(peakNet)} kWh ${peakNet<0?'exported':'imported'} in the bill's on-peak bucket.</span></div><div><b>${superNet} kWh super-off-peak import</b><span>This is where flexible loads like EV charging can legitimately be large without being peak-period behavior.</span></div>`;
+ const months=b.months; $('#auditLedger').innerHTML=months.map((r,i)=>{const prev=i?months[i-1].balance:0,delta=r.balance-prev;return `<div class="ledger-row"><span>${new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',year:'2-digit'})}</span><b class="${r.net_kwh<0?'goodtxt':'badgetxt'}">${r.net_kwh>0?'+':''}${r.net_kwh} kWh</b><strong>${money(r.balance)}</strong><em class="${delta<=0?'goodtxt':'badgetxt'}">${delta>0?'+':''}${money(delta)}</em></div>`}).join('');
+ const evidence=[
+  ['explained','$910 composition','The three bill buckets add back to the current account balance.'],
+  ['explained','Winter NEM buildup','Monthly ledger shows the energy balance peaking in March, then improving through July.'],
+  ['explained','July 18 demand spike',`EV charging explains about ${num(m.peakShare,0)}% of the highest-use hour.`],
+  ['partial','Solar feed comparison','Tesla and SolarEdge are not treated as interchangeable until their measurement scopes are labeled.'],
+  ['missing','Utility interval reconciliation','Green Button 15-minute data is still needed to compare SDG&E meter intervals against site telemetry.'],
+  ['missing','Whole-home circuit attribution','Current Emporia export covers the EV charger, not every circuit.']
+ ];
+ $('#evidenceBoard').innerHTML=evidence.map(([c,t,d])=>`<div class="evidence ${c}"><span>${c==='explained'?'✓':c==='partial'?'~':'?'}</span><div><b>${t}</b><small>${d}</small></div></div>`).join('');
+ const items=[
+  ['good','Current-month charge separated from true-up',`This month's current charges are ${money(b.current_period.current_charges)} after the climate credit; the ${money(b.trueup.account_balance)} figure is accumulated.`],
+  ['good','Balance anatomy reconciles',`${money(b.trueup.nem_balance)} NEM + ${money(b.trueup.non_bypassable_charges)} non-bypassable + ${money(b.trueup.other_meter_charges_payments)} other meter = ${money(b.trueup.account_balance)}.`],
+  ['good','Winter drove the NEM energy balance','The running NEM balance climbed to $684.16 by March, then spring/summer credits pushed it down before August rose again.'],
+  ['good','July 18 demand spike identified',`Emporia shows ${num(e.july18_midnight_kwh,2)} kWh on the EV charger from midnight–1 AM, explaining about ${num(m.peakShare,0)}% of SDG&E's 14.4 kW peak hour.`],
+  ['warn','Exact utility-vs-house interval audit is not available yet','We need SDG&E Green Button interval data before Energy Daddy can call a meter discrepancy real.'],
+  ['warn','Solar feeds remain separate evidence',`Tesla integrates to ${num(m.solar,1)} kWh on the supplied day while the SolarEdge snapshot reports ${DATA.solaredge.reported_today_kwh} kWh. Energy Daddy will not merge them until scope is known.`]
+ ];
+ $('#auditTrail').innerHTML=items.map(([c,h,p])=>`<div class="time-item ${c}"><b>${h}</b><span>${p}</span></div>`).join('');
+ renderEvTou();
+} 
+function renderEvTou(){
+ const m=METRICS;if(!$('#evTouGrid'))return; const t=m.evTou,total=t.total||1;
+ const rows=[['Super off-peak',t.super,'preferred'],['Off-peak',t.off,'normal'],['On-peak',t.on,'avoid']];
+ $('#evTouGrid').innerHTML=rows.map(([n,v,c])=>`<div class="ev-tou-item"><span>${n}</span><strong>${num(v,1)} kWh</strong><div class="track"><i class="fill ${c}" style="width:${v/total*100}%"></i></div><small>${num(v/total*100,0)}% of measured EV energy</small></div>`).join('');
+ $('#evTouScore').textContent=`${num(m.evPreferredPct,0)}% super off-peak`;
+ $('#evTouText').textContent=`Across the supplied Emporia history, ${num(m.evPreferredPct,0)}% of measured EV charging landed in EV-TOU-5 super-off-peak hours. This is a real behavior score from the charger timestamps, not an assumption based on one spike.`;
+}
 function getInsights(){const b=DATA.bill,m=METRICS;return [
  {p:1,t:'The $910 balance is not one thing',d:`Only ${money(b.trueup.nem_balance)} is the running NEM energy balance. ${money(m.nonEnergy)} already sits in non-bypassable and other meter buckets.`},
  {p:1,t:'Your supplied Tesla day looks energetically strong',d:`Solar generated ${num(m.solar,1)} kWh versus ${num(m.home,1)} kWh of home load, while grid exports (${num(m.gridExport,1)} kWh) exceeded imports (${num(m.gridImport,1)} kWh).`},
- {p:1,t:'Meter topology is now the biggest unknown',d:`SolarEdge and Tesla differ by ${num(m.solarMismatch,1)} kWh on the supplied day, and SDG&E lists only 6.86 kW of registered NEM capacity. The smart move is mapping sources before calling any one of them wrong.`},
+ {p:1,t:'Source scope is now the biggest data question',d:`SolarEdge and Tesla differ by ${num(m.solarMismatch,1)} kWh on the supplied day. Energy Daddy keeps them separate until we know exactly what each feed measures instead of forcing a false reconciliation.`},
  {p:2,t:'EV timing is behaving like EV-TOU-5 expects',d:`The identified July 18 EV spike began at midnight, inside super-off-peak. It explains most of the 14.4 kW peak without automatically implying expensive timing.`},
  {p:2,t:'Battery is materially shifting energy',d:`Across the supplied Tesla window, Energy Daddy sees about ${num(m.batteryCharge,1)} kWh of charging and ${num(m.batteryDischarge,1)} kWh of discharge. Settings are the missing context for deciding whether that behavior is financially optimal.`},
  {p:3,t:'Green Button is the unlock',d:'Once SDG&E 15-minute intervals are imported, the platform can reconcile utility-meter import/export against Tesla by timestamp and flag actual disagreements instead of inferring from monthly totals.'}
