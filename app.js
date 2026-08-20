@@ -5,7 +5,7 @@ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 let DATA={},METRICS={};
 async function load(){
   const names=['bill','tesla','emporia','solaredge'];
-  const all=await Promise.all(names.map(x=>fetch(`data/${x}.json?v=11`).then(r=>{if(!r.ok)throw new Error(`${x}: ${r.status}`);return r.json()})));
+  const all=await Promise.all(names.map(x=>fetch(`data/${x}.json?v=12`).then(r=>{if(!r.ok)throw new Error(`${x}: ${r.status}`);return r.json()})));
   DATA=Object.fromEntries(names.map((n,i)=>[n,all[i]]));
   METRICS=analyze(); render();
 }
@@ -27,7 +27,16 @@ function analyze(){
  const pressure=clamp(Math.round((b.trueup.account_balance/1000)*70 + (b.trueup.nem_balance/700)*30),0,100);
  const timing=clamp(Math.round(82 + (b.current_period.on_peak_kwh<0?12:0) - (b.current_period.super_off_peak_kwh>300?10:0)),0,100);
  const meterAgreement=solarMismatchPct<10?90:solarMismatchPct<25?70:45;
- return {gridImport,gridExport,batteryDischarge,batteryCharge,solar,home,solarCoverage,gridIndependence,avgDelta,monthsRemaining,nemForecast,daysLeft,nonEnergy,solarMismatch,solarMismatchPct,peakShare,pressure,timing,meterAgreement};
+ const latest=ser[ser.length-1]||{}, socPoints=ser.filter(r=>r.soc!=null), latestSoc=socPoints.length?Number(socPoints[socPoints.length-1].soc):null;
+ const solarPeak=Math.max(...ser.map(r=>Number(r.solar||0))), homePeak=Math.max(...ser.map(r=>Number(r.home||0)));
+ const physicsErrors=ser.map(r=>Math.abs(Number(r.solar||0)+Number(r.battery||0)+Number(r.grid||0)-Number(r.home||0)));
+ const physicsMae=physicsErrors.reduce((a,v)=>a+v,0)/Math.max(1,physicsErrors.length);
+ const evening=ser.filter(r=>{const h=new Date(r.t).getHours();return h>=16&&h<21});
+ const eveningHome=evening.length?evening.reduce((a,r)=>a+Number(r.home||0),0)/evening.length:0;
+ const batteryKwhNominal=13.5, usableKwh=latestSoc==null?0:batteryKwhNominal*latestSoc/100;
+ const shieldHours=eveningHome?usableKwh/eveningHome:0;
+ const ytdNetKwh=b.months.reduce((a,r)=>a+Number(r.net_kwh||0),0);
+ return {gridImport,gridExport,batteryDischarge,batteryCharge,solar,home,solarCoverage,gridIndependence,avgDelta,monthsRemaining,nemForecast,daysLeft,nonEnergy,solarMismatch,solarMismatchPct,peakShare,pressure,timing,meterAgreement,latest,latestSoc,solarPeak,homePeak,physicsMae,eveningHome,shieldHours,ytdNetKwh};
 }
 function render(){
  const {bill:b,tesla:t,emporia:e}=DATA,m=METRICS;
@@ -43,7 +52,7 @@ function render(){
  $('#gridBehaviorText').textContent=m.gridExport>m.gridImport?`The supplied Tesla day is a net-export day by about ${num(m.gridExport-m.gridImport)} kWh through the end of the export.`:`The supplied Tesla day is a net-import day by about ${num(m.gridImport-m.gridExport)} kWh through the end of the export.`;
  $('#evJuly').textContent=num(e.summary.july_kwh,1); $('#sdgePeak').textContent=`${num(b.current_period.highest_demand_kw,1)} kW`; $('#evPeak').textContent=`${num(e.summary.july18_midnight_kwh,2)} kWh`;
  $('#evShare').style.width=Math.min(100,m.peakShare)+'%'; $('#evExplainer').textContent=`The EV charger explains about ${num(m.peakShare,0)}% of SDG&E's 14.4 kW highest-use hour. The remaining ~${num(b.current_period.highest_demand_kw-e.summary.july18_midnight_kwh,1)} kW came from other loads.`;
- renderBrain(); drawNem(); drawTesla(); drawEv(); drawDonut(); renderTou(); renderAudit(); renderInsights(); renderConnections();
+ renderBrain(); renderLiveBrain(); renderLab(); drawNem(); drawTesla(); drawEv(); drawDonut(); renderTou(); renderAudit(); renderInsights(); renderConnections();
  const winterPeak=Math.max(...b.months.map(x=>x.balance));
  $('#topInsight').innerHTML=`<h3>✦ Smart finding: this is a winter debt problem, not a broken-solar-looking summer.</h3><p>The NEM energy balance peaked at <b>${money(winterPeak)}</b> in March. Recent months have generally pushed it down. On the supplied Tesla day, solar generated <b>${num(m.solar)} kWh</b> against <b>${num(m.home)} kWh</b> of home use and the site exported more energy than it imported.</p>`;
 }
@@ -60,6 +69,51 @@ function renderBrain(){const {bill:b,solaredge:s}=DATA,m=METRICS;
  ]; $('#actionCount').textContent=`${actions.length} actions`; $('#actionList').innerHTML=actions.map(a=>`<div class="action"><span>${a[0]}</span><div><b>${a[1]}</b><p>${a[2]}</p></div></div>`).join('');
  $('#forecastCurrent').textContent=money(b.trueup.nem_balance); $('#forecastEnd').textContent=money(m.nemForecast); $('#forecastExplain').textContent=`This is deliberately an NEM-only directional estimate. It uses the average month-to-month change across the most recent four balance changes (${money(m.avgDelta)}/month) for the remaining ${num(m.monthsRemaining,1)} billing-month equivalents. It does not pretend future non-bypassable or meter charges are known.`;
  const q=[['SDG&E bill/NEM','High','Official bill values and true-up ledger'],['Tesla site telemetry','High','5-minute physics-quality site flow for one supplied day'],['Emporia EV','High','Direct circuit measurement for the EV charger'],['SolarEdge','Partial','One share snapshot, not interval history'],['Whole-home attribution','Missing','Need Emporia mains/circuits']]; $('#qualityList').innerHTML=q.map(r=>`<div class="quality"><b>${r[0]}</b><span class="q ${r[1].toLowerCase()}">${r[1]}</span><small>${r[2]}</small></div>`).join('');
+}
+function touStateAt(date){
+ const d=new Date(date),h=d.getHours()+d.getMinutes()/60,weekend=[0,6].includes(d.getDay());
+ if(h>=16&&h<21)return 'ON-PEAK';
+ if(weekend&&h<14)return 'SUPER OFF-PEAK';
+ if(!weekend&&((h>=0&&h<6)||(h>=10&&h<14)))return 'SUPER OFF-PEAK';
+ return 'OFF-PEAK';
+}
+function renderLiveBrain(){
+ const m=METRICS,l=m.latest||{}; if(!$('#liveHome'))return;
+ const kw=(v)=>`${num(Math.abs(Number(v||0)),1)} kW`;
+ $('#liveHome').textContent=kw(l.home); $('#liveSolar').textContent=kw(l.solar);
+ $('#liveBattery').textContent=Number(l.battery||0)>=0?`${kw(l.battery)} out`:`${kw(l.battery)} charging`;
+ $('#liveGrid').textContent=Number(l.grid||0)>0?`${kw(l.grid)} import`:`${kw(l.grid)} export`;
+ $('#liveSoc').textContent=m.latestSoc==null?'—':`${num(m.latestSoc,0)}%`;
+ $('#liveTou').textContent=touStateAt(l.t||new Date());
+ const dt=new Date(l.t); $('#telemetryAge').textContent=`● snapshot ${dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+ let story='';
+ if(Number(l.grid||0)<=0 && Number(l.battery||0)>0) story=`The supplied snapshot shows the Powerwall covering the evening while the grid is effectively at zero. That is exactly the behavior we want during the expensive window.`;
+ else if(Number(l.grid||0)>0 && touStateAt(l.t)==='ON-PEAK') story=`The house is importing during on-peak in this snapshot. Once live feeds exist, this becomes a high-priority alert.`;
+ else story=`The latest supplied telemetry is behaving normally for its TOU period.`;
+ $('#liveNarrative').textContent=story;
+ const briefs=[];
+ briefs.push(m.gridExport>m.gridImport?['good','Grid-positive supplied day',`Tesla shows ${num(m.gridExport-m.gridImport)} kWh more export than import through the supplied snapshot.`]:['watch','Net grid import day',`Tesla shows ${num(m.gridImport-m.gridExport)} kWh more import than export.`]);
+ briefs.push(DATA.bill.current_period.on_peak_kwh<0?['good','Peak-period behavior is strong',`${Math.abs(DATA.bill.current_period.on_peak_kwh)} net kWh were exported during the bill's on-peak bucket.`]:['watch','Peak imports need attention',`${DATA.bill.current_period.on_peak_kwh} kWh were imported on-peak.`]);
+ briefs.push(m.physicsMae<0.25?['good','Tesla physics reconcile cleanly',`Average site-flow equation error is only ${num(m.physicsMae,2)} kW across the supplied samples.`]:['watch','Site-flow mismatch detected',`Average telemetry equation error is ${num(m.physicsMae,2)} kW; worth checking sign conventions or sampling.`]);
+ $('#dailyBrief').innerHTML=briefs.map(([c,t,p])=>`<div class="brief ${c}"><b>${t}</b><p>${p}</p></div>`).join('');
+}
+function renderLab(){
+ if(!$('#saveKwh'))return; const m=METRICS,b=DATA.bill;
+ const update=()=>{const save=Number($('#saveKwh').value);$('#saveKwhLabel').textContent=`${save} kWh/mo`;$('#scenarioCurrentKwh').textContent=`${Math.round(m.ytdNetKwh)} kWh`;
+   const remaining=Math.max(0,m.monthsRemaining),adj=Math.round(m.ytdNetKwh-save*remaining);$('#scenarioAdjustedKwh').textContent=`${adj} kWh`;
+   const dollarsPerNetKwh=b.trueup.nem_balance/Math.max(1,m.ytdNetKwh); const directional=Math.max(0,b.trueup.nem_balance-save*remaining*dollarsPerNetKwh);$('#scenarioNem').textContent=money(directional);
+   $('#scenarioExplain').textContent=`Directional only: the model uses your current NEM-balance-to-net-kWh relationship as a pressure factor, not as a tariff quote. Improving net position by ${save} kWh/month for ~${num(remaining,1)} billing-month equivalents would remove roughly ${Math.round(save*remaining)} net kWh of pressure.`;
+ }; $('#saveKwh').oninput=update; update();
+ $('#shieldSoc').textContent=m.latestSoc==null?'—':`${num(m.latestSoc,0)}%`; $('#shieldHours').textContent=m.shieldHours?`${num(m.shieldHours,1)} hr`:'—'; $('#shieldMeter').style.width=`${clamp((m.latestSoc||0),0,100)}%`;
+ $('#shieldText').textContent=`Using a 13.5 kWh nominal Powerwall assumption and the supplied day's average 4–9 PM home load of ${num(m.eveningHome,1)} kW, the latest observed state of charge implies about ${num(m.shieldHours,1)} hours of rough load coverage. This is a planning estimate, not a battery guarantee.`;
+ const anomalies=[];
+ anomalies.push(['P1','Registered solar size mismatch',`SDG&E shows ${b.registered_system_kw} kW. Tesla's observed solar peak reached ${num(m.solarPeak,1)} kW. Verify whether the registered size reflects AC rating, one array, or an older interconnection record.`]);
+ if(m.solarMismatchPct>20)anomalies.push(['P1','Solar sources disagree',`SolarEdge's shared daily total and Tesla's integrated supplied day differ by ${num(m.solarMismatch)} kWh (${num(m.solarMismatchPct,0)}%). Keep them separate until topology is labeled.`]);
+ anomalies.push(['P2','July 18 demand event explained',`Emporia EV charging accounted for about ${num(m.peakShare,0)}% of SDG&E's highest-use hour, so this is classified rather than unexplained.`]);
+ if(m.physicsMae>0.3)anomalies.push(['P2','Tesla site-flow equation drift',`Average equation residual is ${num(m.physicsMae,2)} kW.`]);
+ $('#anomalyList').innerHTML=anomalies.map(a=>`<div class="action"><span>${a[0]}</span><div><b>${a[1]}</b><p>${a[2]}</p></div></div>`).join('');
+ $('#solarPeak').textContent=`${num(m.solarPeak,1)} kW`; const pct=b.registered_system_kw?m.solarPeak/b.registered_system_kw*100:0; $('#solarPeakPct').textContent=`${num(pct,0)}%`;
+ $('#solarPerfText').textContent=pct>100?`Observed Tesla solar power exceeded the ${b.registered_system_kw} kW system size listed on the utility bill. That does not automatically mean anything is wrong; AC/DC ratings, multiple systems, clipping, and registration scope can differ. Energy Daddy flags it for topology verification.`:`Observed peak was below the registered utility size on this supplied day.`;
 }
 function canvasSetup(id){const c=$(id),dpr=devicePixelRatio||1,w=c.clientWidth,h=+c.getAttribute('height');c.width=w*dpr;c.height=h*dpr;const x=c.getContext('2d');x.scale(dpr,dpr);return {c,x,w,h}}
 function drawNem(){const {x,w,h}=canvasSetup('#nemChart'),m=DATA.bill.months,p=26; x.clearRect(0,0,w,h);const maxK=Math.max(...m.map(d=>Math.abs(d.net_kwh))),maxB=Math.max(...m.map(d=>d.balance)),step=(w-p*2)/(m.length-1);x.strokeStyle='#292930';for(let i=0;i<4;i++){let y=p+i*(h-p*2)/3;x.beginPath();x.moveTo(p,y);x.lineTo(w-p,y);x.stroke()}m.forEach((d,i)=>{const barH=Math.abs(d.net_kwh)/maxK*58,xx=p+i*step,base=h-46;x.fillStyle=d.net_kwh<0?'#48d17a':'#8a7cff';x.fillRect(xx-7,d.net_kwh<0?base:base-barH,14,barH);x.fillStyle='#777780';x.font='9px sans-serif';x.textAlign='center';x.fillText(new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{month:'short'}),xx,h-15)});x.strokeStyle='#64d8ff';x.lineWidth=2.5;x.beginPath();m.forEach((d,i)=>{const xx=p+i*step,yy=p+(1-d.balance/maxB)*(h-85);i?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke()}
