@@ -1,3 +1,20 @@
+# Energy Daddy 1.7.3 — Enphase Superfix
+
+This build is the corrected deployment package for the Enphase auth rescue. It restores absolute asset paths and forces a fresh service-worker cache so Safari/PWA cannot regress to unstyled HTML.
+
+## Deploy
+
+```bash
+npm install
+npx wrangler deploy
+```
+
+No database migration is required.
+
+## Verify
+
+After deployment, `/api/health` must report version `1.7.3`. Then open `/api/enphase/connect/manual`.
+
 # Energy Daddy by DCW Grows — Build 1.7.2 Daily Coach
 
 Build 1.7.2 adds a deterministic Daily Coach on top of the 1.6.1 mobile rescue. No provider credentials are required for the coach to work: it ranks actions from the loaded SDG&E, Tesla, Emporia, SolarEdge evidence plus the configured EV-TOU-5 timing model.

@@ -1,33 +1,11 @@
-# Energy Daddy Build 1.7.2 — Daily Coach
+# Energy Daddy Build 1.7.3 — Enphase Superfix
 
-## Goal
-Make Energy Daddy feel alive before live provider credentials arrive. The coach uses deterministic household evidence to answer: what matters now, when should flexible loads run, what window should be protected, and why.
+Fixes the frontend regression from 1.7.2 and keeps the Enphase manual OAuth rescue path.
 
-## Intelligence
-- Energy Score (0–100)
-- current TOU-state awareness
-- observed solar-window detection
-- best-window overlap logic
-- day-type classification
-- behavior fingerprints
-- evidence-first recommendations
-- cloud heartbeat freshness
-
-## Safety
-The coach explicitly distinguishes loaded/historical evidence from live provider telemetry. It does not fabricate current solar, current battery, or current whole-home load.
-
-## Cloud
-No schema change. Deploy over the existing Worker/D1/KV stack.
-
-
-## Enphase OAuth Bridge
-- `/api/enphase/connect` starts homeowner OAuth.
-- `/api/enphase/callback` exchanges the auth code and stores rotating tokens in KV.
-- `/api/enphase/status` reports connection state without exposing tokens.
-- `/api/enphase/poll` is an authenticated manual poll endpoint.
-- Cron polls Enphase at most once per ~hour to stay comfortably under the free Watt plan limit.
-- Latest PV and consumption power are stored as provider-latest evidence; settlement-grade interval backfill remains a later reconciliation step.
-
-
-## Enphase auth rescue
-Build 1.7.2 adds a documented default-redirect manual OAuth fallback at `/api/enphase/connect/manual` and pins the known homeowner system ID `5484185` to avoid unnecessary discovery calls. The normal callback flow remains available.
+- All frontend assets now use absolute root paths.
+- Service worker cache bumped to 1.7.3 and uses absolute paths.
+- API routes are never intercepted by the service worker.
+- Manual Enphase OAuth route remains at `/api/enphase/connect/manual`.
+- Enphase system ID remains configured as `5484185`.
+- No D1 migration required.
+- Local Energy Daddy ports remain 5050/5051; Plant Daddy 8000-series remains reserved.
