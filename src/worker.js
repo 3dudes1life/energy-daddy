@@ -25,7 +25,7 @@ async function health(env){
   let d1=false, kv=false;
   try{ await env.ENERGY_DB.prepare('SELECT 1 AS ok').first(); d1=true; }catch{}
   try{ await env.ENERGY_STATE.put('health:last', nowIso(), {expirationTtl:3600}); kv=true; }catch{}
-  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.7', d1, kv, time:nowIso()};
+  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.8', d1, kv, time:nowIso()};
 }
 async function latest(env){
   const raw=await env.ENERGY_STATE.get('latest:site','json');
@@ -62,7 +62,7 @@ async function live(env){
   `).all()).results||[];
   const src=await sources(env);
   const cron=await env.ENERGY_STATE.get('cron:last');
-  return {ok:true,version:'1.7.7',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
+  return {ok:true,version:'1.7.8',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
 }
 async function events(env,url){
   const limit=Math.min(100,Math.max(1,Number(url.searchParams.get('limit')||20)));
@@ -264,26 +264,31 @@ function safeTelemetryShape(body){
     leaves:leaves.map(x=>({path:x.path,type:x.type,value:(typeof x.value==='string'&&x.value.length>120)?`${x.value.slice(0,117)}…`:x.value}))
   };
 }
-function latestPowerByHints(body,hints){
-  const leaves=flattenLeaves(body);
-  const candidates=[];
-  for(const leaf of leaves){
-    if(!/(^|\.)(power|watts|w|power_w)$/i.test(leaf.path)) continue;
-    const n=Number(leaf.value); if(!Number.isFinite(n)) continue;
-    const p=leaf.path.toLowerCase();
-    const score=hints.reduce((acc,h)=>acc+(p.includes(h)?10:0),0) + (p.endsWith('.power')?2:0);
-    if(score>0) candidates.push({value:n,path:leaf.path,score});
+function enphaseMeterGroups(body){
+  const meters=Array.isArray(body?.devices?.meters)?body.devices.meters:[];
+  const groups={};
+  for(const meter of meters){
+    const name=String(meter?.name||'unknown').toLowerCase();
+    const power=Number(meter?.power);
+    if(!groups[name]) groups[name]={name,channels:[],total_w:0,valid_channels:0};
+    groups[name].channels.push({channel:meter?.channel??null,power_w:Number.isFinite(power)?power:null,last_report_at:meter?.last_report_at??null});
+    if(Number.isFinite(power)){groups[name].total_w+=power;groups[name].valid_channels++;}
   }
-  candidates.sort((a,b)=>b.score-a.score);
-  return candidates[0]||null;
+  return groups;
 }
 function mapEnphaseLatest(body){
-  // Enphase latest_telemetry groups device classes and puts instantaneous watts in nested `power` fields.
-  // We score leaf paths rather than assuming one historic payload spelling.
-  const pv=latestPowerByHints(body,['pv','production','solar','micro']);
-  const consumption=latestPowerByHints(body,['consumption','consume','load']);
-  const battery=latestPowerByHints(body,['battery','encharge','storage']);
-  return {pv,consumption,battery};
+  // Enphase latest_telemetry identifies each CT explicitly with meter.name.
+  // Sum the valid phase/channel watts for each named meter instead of guessing from leaf paths.
+  const groups=enphaseMeterGroups(body);
+  const prod=groups.production;
+  const cons=groups.consumption;
+  const battery=groups.battery||groups.storage||groups.encharge;
+  return {
+    pv:prod&&prod.valid_channels?{value:prod.total_w,path:'devices.meters[name=production].power(sum valid channels)',channels:prod.channels}:null,
+    consumption:cons&&cons.valid_channels?{value:cons.total_w,path:'devices.meters[name=consumption].power(sum valid channels)',channels:cons.channels}:null,
+    battery:battery&&battery.valid_channels?{value:battery.total_w,path:`devices.meters[name=${battery.name}].power(sum valid channels)`,channels:battery.channels}:null,
+    meter_groups:groups
+  };
 }
 async function enphaseTelemetryShape(request,env){
   if(!isAuthorized(request,env)) return {error:'unauthorized',status:401};
@@ -299,7 +304,8 @@ async function enphaseTelemetryShape(request,env){
     mapped:{
       pv_power_w:mapped.pv?.value??null,pv_path:mapped.pv?.path??null,
       consumption_power_w:mapped.consumption?.value??null,consumption_path:mapped.consumption?.path??null,
-      battery_power_w:mapped.battery?.value??null,battery_path:mapped.battery?.path??null
+      battery_power_w:mapped.battery?.value??null,battery_path:mapped.battery?.path??null,
+      meter_groups:mapped.meter_groups||{}
     },
     shape:safeTelemetryShape(body)
   };

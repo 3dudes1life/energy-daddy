@@ -1,4 +1,6 @@
-## Build 1.7.7 — Enphase Manual Lock
+# Energy Daddy Build 1.7.8 — Enphase Meter Map
+
+Maps Enphase latest telemetry by explicit meter name and sums valid production/consumption channels. Battery remains null unless Enphase actually returns a battery/storage meter.
 
 This build removes the browser popup/new-tab dependency from Enphase authorization and makes the manual bridge the only public connection path.
 
