@@ -25,7 +25,7 @@ async function health(env){
   let d1=false, kv=false;
   try{ await env.ENERGY_DB.prepare('SELECT 1 AS ok').first(); d1=true; }catch{}
   try{ await env.ENERGY_STATE.put('health:last', nowIso(), {expirationTtl:3600}); kv=true; }catch{}
-  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.5', d1, kv, time:nowIso()};
+  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.6', d1, kv, time:nowIso()};
 }
 async function latest(env){
   const raw=await env.ENERGY_STATE.get('latest:site','json');
@@ -62,7 +62,7 @@ async function live(env){
   `).all()).results||[];
   const src=await sources(env);
   const cron=await env.ENERGY_STATE.get('cron:last');
-  return {ok:true,version:'1.7.5',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
+  return {ok:true,version:'1.7.6',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
 }
 async function events(env,url){
   const limit=Math.min(100,Math.max(1,Number(url.searchParams.get('limit')||20)));
@@ -110,7 +110,7 @@ const ENPHASE_DEFAULT_REDIRECT='https://api.enphaseenergy.com/oauth/redirect_uri
 const ENPHASE_MANUAL_STATE_PREFIX='enphase:manual_state:';
 
 function base64Basic(clientId,clientSecret){
-  return `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
+  return `Basic ${btoa(`${String(clientId||'').trim()}:${String(clientSecret||'').trim()}`)}`;
 }
 function enphaseConfigured(env){
   return Boolean((env.ENPHASE_API_KEY||'').trim()&&(env.ENPHASE_CLIENT_ID||'').trim()&&(env.ENPHASE_CLIENT_SECRET||'').trim());
@@ -146,11 +146,77 @@ async function validEnphaseToken(env){
   return token;
 }
 async function enphaseFetch(env,path,token){
+  const apiKey=String(env.ENPHASE_API_KEY||'').trim();
+  const accessToken=String(token?.access_token||'').trim();
   const sep=path.includes('?')?'&':'?';
-  const res=await fetch(`https://api.enphaseenergy.com${path}${sep}key=${encodeURIComponent(env.ENPHASE_API_KEY)}`,{headers:{Authorization:`Bearer ${token.access_token}`,Accept:'application/json'}});
+  const url=`https://api.enphaseenergy.com${path}${sep}key=${encodeURIComponent(apiKey)}`;
+  const res=await fetch(url,{headers:{Authorization:`Bearer ${accessToken}`,Accept:'application/json'}});
   const body=await res.json().catch(()=>({}));
   if(!res.ok) throw new Error(`Enphase API ${res.status}: ${body.message||body.error||'request failed'}`);
   return body;
+}
+
+async function sha256Short(value){
+  const bytes=new TextEncoder().encode(String(value||''));
+  const hash=await crypto.subtle.digest('SHA-256',bytes);
+  return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('').slice(0,12);
+}
+function edge(value,n=4){
+  const v=String(value||'').trim();
+  if(!v) return null;
+  if(v.length<=n*2) return v;
+  return `${v.slice(0,n)}…${v.slice(-n)}`;
+}
+async function probeEnphase(env,token,mode='query'){
+  const apiKey=String(env.ENPHASE_API_KEY||'').trim();
+  const accessToken=String(token?.access_token||'').trim();
+  let url='https://api.enphaseenergy.com/api/v4/systems';
+  const headers={Authorization:`Bearer ${accessToken}`,Accept:'application/json'};
+  if(mode==='query') url+=`?key=${encodeURIComponent(apiKey)}`;
+  if(mode==='header') headers['x-api-key']=apiKey;
+  if(mode==='both') { url+=`?key=${encodeURIComponent(apiKey)}`; headers['x-api-key']=apiKey; }
+  const res=await fetch(url,{headers});
+  const text=await res.text();
+  let body; try{ body=JSON.parse(text); }catch{ body={raw:text.slice(0,300)}; }
+  return {mode,status:res.status,ok:res.ok,message:body?.message||body?.error||null,body:res.ok?{count:body?.count??null,systems:Array.isArray(body?.systems)?body.systems.map(x=>({system_id:x.system_id,name:x.name||x.public_name||null,status:x.status||null})).slice(0,5):null}:undefined};
+}
+async function enphaseDiagnostics(request,env){
+  if(!isAuthorized(request,env)) return {error:'unauthorized',status:401};
+  const token=await getEnphaseToken(env);
+  const apiKey=String(env.ENPHASE_API_KEY||'').trim();
+  const clientId=String(env.ENPHASE_CLIENT_ID||'').trim();
+  const clientSecret=String(env.ENPHASE_CLIENT_SECRET||'').trim();
+  const out={
+    ok:true,
+    configured:enphaseConfigured(env),
+    system_id:String(env.ENPHASE_SYSTEM_ID||'').trim()||null,
+    credentials:{
+      client_id_hint:edge(clientId),client_id_len:clientId.length,client_id_sha256:clientId?await sha256Short(clientId):null,
+      api_key_hint:edge(apiKey),api_key_len:apiKey.length,api_key_sha256:apiKey?await sha256Short(apiKey):null,
+      client_secret_len:clientSecret.length,client_secret_sha256:clientSecret?await sha256Short(clientSecret):null
+    },
+    token:token?{present:true,token_type:token.token_type||null,scope:token.scope||null,enl_uid:token.enl_uid||null,enl_cid:token.enl_cid||null,app_type:token.app_type||null,obtained_at:token.obtained_at||null,expires_at:token.expires_at||null,access_token_sha256:token.access_token?await sha256Short(String(token.access_token).trim()):null}: {present:false}
+  };
+  if(token?.access_token){
+    out.probes=[];
+    for(const mode of ['query','header','both']){
+      try{ out.probes.push(await probeEnphase(env,token,mode)); }
+      catch(e){ out.probes.push({mode,ok:false,status:null,message:String(e?.message||e)}); }
+    }
+  }
+  return out;
+}
+async function resetEnphase(request,env){
+  if(!isAuthorized(request,env)) return {error:'unauthorized',status:401};
+  await Promise.all([
+    env.ENERGY_STATE.delete(ENPHASE_TOKEN_KEY),
+    env.ENERGY_STATE.delete(ENPHASE_SYSTEM_KEY),
+    env.ENERGY_STATE.delete(ENPHASE_LAST_POLL_KEY),
+    env.ENERGY_STATE.delete('enphase:last_raw'),
+    env.ENERGY_STATE.delete('provider:enphase-site')
+  ]);
+  await env.ENERGY_DB.prepare(`UPDATE sources SET status='planned',last_seen_at=NULL WHERE id='enphase-site'`).run();
+  return {ok:true,status:'reset',message:'Enphase tokens/runtime cleared. App credentials in Cloudflare secrets were not changed.'};
 }
 async function discoverEnphaseSystem(env,token){
   const configured=(env.ENPHASE_SYSTEM_ID||'').trim();
@@ -351,6 +417,8 @@ async function api(request,env){
     if(path==='/api/history') return json(await history(env,url),200,headers);
     if(path==='/api/events') return json(await events(env,url),200,headers);
     if(path==='/api/enphase/status') return json(await enphaseStatus(env),200,headers);
+    if(path==='/api/enphase/diagnostics'&&request.method==='POST'){const r=await enphaseDiagnostics(request,env);return json(r,r.status||200,headers);}
+    if(path==='/api/enphase/reset'&&request.method==='POST'){const r=await resetEnphase(request,env);return json(r,r.status||200,headers);}
     if(path==='/api/enphase/connect') return enphaseConnect(request,env);
     if(path==='/api/enphase/connect/manual') return enphaseManualStart(env);
     if(path==='/api/enphase/manual/exchange'&&request.method==='POST') return enphaseManualExchange(request,env);

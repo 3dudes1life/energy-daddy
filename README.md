@@ -1,4 +1,4 @@
-## Build 1.7.5 — Enphase Manual Lock
+## Build 1.7.6 — Enphase Manual Lock
 
 This build removes the browser popup/new-tab dependency from Enphase authorization and makes the manual bridge the only public connection path.
 
