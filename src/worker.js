@@ -25,7 +25,7 @@ async function health(env){
   let d1=false, kv=false;
   try{ await env.ENERGY_DB.prepare('SELECT 1 AS ok').first(); d1=true; }catch{}
   try{ await env.ENERGY_STATE.put('health:last', nowIso(), {expirationTtl:3600}); kv=true; }catch{}
-  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.6', d1, kv, time:nowIso()};
+  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.7', d1, kv, time:nowIso()};
 }
 async function latest(env){
   const raw=await env.ENERGY_STATE.get('latest:site','json');
@@ -62,7 +62,7 @@ async function live(env){
   `).all()).results||[];
   const src=await sources(env);
   const cron=await env.ENERGY_STATE.get('cron:last');
-  return {ok:true,version:'1.7.6',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
+  return {ok:true,version:'1.7.7',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
 }
 async function events(env,url){
   const limit=Math.min(100,Math.max(1,Number(url.searchParams.get('limit')||20)));
@@ -241,6 +241,69 @@ function findNumeric(obj, keys){
   for(const v of Object.values(obj)){ if(v&&typeof v==='object'){const n=findNumeric(v,keys);if(Number.isFinite(n))return n;} }
   return null;
 }
+
+function flattenLeaves(value,path='',out=[]){
+  if(value===null||value===undefined){ out.push({path,value:null,type:'null'}); return out; }
+  if(Array.isArray(value)){
+    if(!value.length) out.push({path,value:[],type:'array'});
+    value.slice(0,20).forEach((v,i)=>flattenLeaves(v,`${path}[${i}]`,out));
+    return out;
+  }
+  if(typeof value==='object'){
+    const keys=Object.keys(value);
+    if(!keys.length) out.push({path,value:{},type:'object'});
+    keys.slice(0,100).forEach(k=>flattenLeaves(value[k],path?`${path}.${k}`:k,out));
+    return out;
+  }
+  out.push({path,value,type:typeof value}); return out;
+}
+function safeTelemetryShape(body){
+  const leaves=flattenLeaves(body).slice(0,250);
+  return {
+    top_level_keys:body&&typeof body==='object'&&!Array.isArray(body)?Object.keys(body):[],
+    leaves:leaves.map(x=>({path:x.path,type:x.type,value:(typeof x.value==='string'&&x.value.length>120)?`${x.value.slice(0,117)}…`:x.value}))
+  };
+}
+function latestPowerByHints(body,hints){
+  const leaves=flattenLeaves(body);
+  const candidates=[];
+  for(const leaf of leaves){
+    if(!/(^|\.)(power|watts|w|power_w)$/i.test(leaf.path)) continue;
+    const n=Number(leaf.value); if(!Number.isFinite(n)) continue;
+    const p=leaf.path.toLowerCase();
+    const score=hints.reduce((acc,h)=>acc+(p.includes(h)?10:0),0) + (p.endsWith('.power')?2:0);
+    if(score>0) candidates.push({value:n,path:leaf.path,score});
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  return candidates[0]||null;
+}
+function mapEnphaseLatest(body){
+  // Enphase latest_telemetry groups device classes and puts instantaneous watts in nested `power` fields.
+  // We score leaf paths rather than assuming one historic payload spelling.
+  const pv=latestPowerByHints(body,['pv','production','solar','micro']);
+  const consumption=latestPowerByHints(body,['consumption','consume','load']);
+  const battery=latestPowerByHints(body,['battery','encharge','storage']);
+  return {pv,consumption,battery};
+}
+async function enphaseTelemetryShape(request,env){
+  if(!isAuthorized(request,env)) return {error:'unauthorized',status:401};
+  const token=await validEnphaseToken(env);
+  if(!token) return {error:'not_authorized',status:401,message:'Enphase OAuth token is not stored.'};
+  let system=await env.ENERGY_STATE.get(ENPHASE_SYSTEM_KEY,'json');
+  if(!system) system=await discoverEnphaseSystem(env,token);
+  const body=await enphaseFetch(env,`/api/v4/systems/${encodeURIComponent(system.system_id)}/latest_telemetry`,token);
+  const mapped=mapEnphaseLatest(body);
+  return {
+    ok:true,
+    system_id:system.system_id,
+    mapped:{
+      pv_power_w:mapped.pv?.value??null,pv_path:mapped.pv?.path??null,
+      consumption_power_w:mapped.consumption?.value??null,consumption_path:mapped.consumption?.path??null,
+      battery_power_w:mapped.battery?.value??null,battery_path:mapped.battery?.path??null
+    },
+    shape:safeTelemetryShape(body)
+  };
+}
 async function pollEnphase(env,{force=false}={}){
   if(!enphaseConfigured(env)){
     const state={status:'awaiting_credentials',live:false,message:'Enphase app credentials are not configured in Cloudflare.'};
@@ -260,15 +323,16 @@ async function pollEnphase(env,{force=false}={}){
       await setProviderState(env,'enphase-site',state);return state;
     }
     const body=await enphaseFetch(env,`/api/v4/systems/${encodeURIComponent(system.system_id)}/latest_telemetry`,token);
-    const pv=findNumeric(body,['pv_power','production_power','production','pv','power_production']);
-    const consumption=findNumeric(body,['consumption_power','consumption','load_power','load']);
+    const mapped=mapEnphaseLatest(body);
+    const pv=mapped.pv?.value??null;
+    const consumption=mapped.consumption?.value??null;
     const captured=nowIso(); const pts=[];
-    if(Number.isFinite(pv)) pts.push({source_id:'enphase-site',metric:'solar_production',t:captured,energy_wh:pv*0.25,power_avg_w:pv,scope:'array_b',quality:'provider_latest',metadata:{provider:'Enphase',system_id:system.system_id,derivation:'latest PV power × 15 minutes; interval telemetry will backfill settlement-grade history'}});
-    if(Number.isFinite(consumption)) pts.push({source_id:'enphase-site',metric:'site_consumption',t:captured,energy_wh:consumption*0.25,power_avg_w:consumption,scope:'site_meter',quality:'provider_latest',metadata:{provider:'Enphase',system_id:system.system_id,topology_note:'Consumption is evidence from Enphase CTs and remains topology-qualified until reconciled against SDG&E/Tesla.'}});
+    if(Number.isFinite(pv)) pts.push({source_id:'enphase-site',metric:'solar_production',t:captured,energy_wh:pv*0.25,power_avg_w:pv,scope:'array_b',quality:'provider_latest',metadata:{provider:'Enphase',system_id:system.system_id,provider_path:mapped.pv?.path||null,derivation:'latest PV power × 15 minutes; interval telemetry will backfill settlement-grade history'}});
+    if(Number.isFinite(consumption)) pts.push({source_id:'enphase-site',metric:'site_consumption',t:captured,energy_wh:consumption*0.25,power_avg_w:consumption,scope:'site_meter',quality:'provider_latest',metadata:{provider:'Enphase',system_id:system.system_id,provider_path:mapped.consumption?.path||null,topology_note:'Consumption is evidence from Enphase CTs and remains topology-qualified until reconciled against SDG&E/Tesla.'}});
     const accepted=pts.length?await ingestPoints(pts,env):0;
     await env.ENERGY_STATE.put(ENPHASE_LAST_POLL_KEY,captured);
     await env.ENERGY_DB.prepare(`UPDATE sources SET status='live',last_seen_at=? WHERE id='enphase-site'`).bind(captured).run();
-    const state={status:'live',live:true,last_seen_at:captured,system_id:system.system_id,pv_power_w:Number.isFinite(pv)?pv:null,consumption_power_w:Number.isFinite(consumption)?consumption:null,points:accepted,message:accepted?'Enphase latest telemetry poll succeeded.':'Enphase responded, but expected PV/consumption power fields were not recognized; raw response shape needs mapping.'};
+    const state={status:'live',live:true,last_seen_at:captured,system_id:system.system_id,pv_power_w:Number.isFinite(pv)?pv:null,consumption_power_w:Number.isFinite(consumption)?consumption:null,pv_path:mapped.pv?.path||null,consumption_path:mapped.consumption?.path||null,points:accepted,message:accepted?'Enphase latest telemetry poll succeeded and mapped provider fields.':'Enphase responded, but PV/consumption power still could not be mapped; use /api/enphase/telemetry-shape.'};
     await env.ENERGY_STATE.put('enphase:last_raw',JSON.stringify({captured_at:captured,body}));
     await setProviderState(env,'enphase-site',state);await providerRun(env,'Enphase',accepted?'ok':'mapping_needed',accepted,state.message);return state;
   }catch(err){
@@ -418,6 +482,7 @@ async function api(request,env){
     if(path==='/api/events') return json(await events(env,url),200,headers);
     if(path==='/api/enphase/status') return json(await enphaseStatus(env),200,headers);
     if(path==='/api/enphase/diagnostics'&&request.method==='POST'){const r=await enphaseDiagnostics(request,env);return json(r,r.status||200,headers);}
+    if(path==='/api/enphase/telemetry-shape'&&request.method==='POST'){const r=await enphaseTelemetryShape(request,env);return json(r,r.status||200,headers);}
     if(path==='/api/enphase/reset'&&request.method==='POST'){const r=await resetEnphase(request,env);return json(r,r.status||200,headers);}
     if(path==='/api/enphase/connect') return enphaseConnect(request,env);
     if(path==='/api/enphase/connect/manual') return enphaseManualStart(env);
