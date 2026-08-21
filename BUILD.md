@@ -1,25 +1,14 @@
-# Energy Daddy Build 1.7.8 — Enphase Meter Map
+# Energy Daddy Build 1.8.0 — SolarEdge ONE Prep
 
-- Fixes Enphase mapper to group `devices.meters[]` by `name` instead of guessing from leaf paths.
-- Sums non-null production channels and consumption channels.
-- Does not invent battery telemetry when no battery meter is returned.
-- Preserves topology caution: no grid import/export is inferred from these watts yet.
+This build keeps the working Enphase live feed intact and prepares Energy Daddy for SolarEdge ONE for Developers.
 
-- Dashboard Connect Enphase button now points to `/api/enphase/connect/manual`.
-- `/api/enphase/connect` now redirects internally to the manual bridge instead of Enphase directly.
-- Manual authorization opens in the same tab; no popup/new-window behavior required.
-- Manual page also shows the generated Enphase authorization URL as a copy/paste fallback.
-- No D1 migration. Existing Cloudflare secrets, D1, KV, and cron are reused.
+## What changed
+- Version 1.8.0.
+- Legacy SolarEdge V1 polling is disabled so it cannot conflict with SolarEdge ONE.
+- Adds `SOLAREDGE_CLIENT_ID` and `SOLAREDGE_CLIENT_SECRET` support.
+- Adds safe `/api/solaredge/status` diagnostics.
+- Keeps SolarEdge as Array A and Enphase as Array B/site-meter evidence.
+- No new D1 migration.
 
-
-## 1.7.8 Enphase Diagnostics
-- Trims Enphase API key, client ID, client secret, and access token before use.
-- Adds protected POST `/api/enphase/diagnostics` with non-secret fingerprints and three live `/api/v4/systems` probes: query-key, `x-api-key`, and both.
-- Adds protected POST `/api/enphase/reset` to clear Enphase tokens/runtime only; Cloudflare app secrets remain untouched.
-- No D1 migration.
-
-
-## Enphase Mapper
-- Adds protected `/api/enphase/telemetry-shape` to expose safe field paths/values from `latest_telemetry`.
-- Maps nested Enphase `power` leaves by semantic path (PV/production vs consumption/load), rather than guessing flat field names.
-- Stores the mapped provider path in telemetry metadata for auditability.
+## Next step
+Store the SolarEdge ONE Client ID and Client Secret as Cloudflare Worker secrets, verify `/api/solaredge/status`, then add the OAuth/site-consent bridge after the app credentials are safely stored.

@@ -25,7 +25,7 @@ async function health(env){
   let d1=false, kv=false;
   try{ await env.ENERGY_DB.prepare('SELECT 1 AS ok').first(); d1=true; }catch{}
   try{ await env.ENERGY_STATE.put('health:last', nowIso(), {expirationTtl:3600}); kv=true; }catch{}
-  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.8', d1, kv, time:nowIso()};
+  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.8.0', d1, kv, time:nowIso()};
 }
 async function latest(env){
   const raw=await env.ENERGY_STATE.get('latest:site','json');
@@ -62,7 +62,7 @@ async function live(env){
   `).all()).results||[];
   const src=await sources(env);
   const cron=await env.ENERGY_STATE.get('cron:last');
-  return {ok:true,version:'1.7.8',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
+  return {ok:true,version:'1.8.0',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
 }
 async function events(env,url){
   const limit=Math.min(100,Math.max(1,Number(url.searchParams.get('limit')||20)));
@@ -433,35 +433,33 @@ async function enphaseCodeExchange(request,env){
   }
 }
 
+async function solaredgeOneStatus(env){
+  const clientId=(env.SOLAREDGE_CLIENT_ID||'').trim();
+  const clientSecret=(env.SOLAREDGE_CLIENT_SECRET||'').trim();
+  const configured=!!(clientId&&clientSecret);
+  const hint=v=>v?`${v.slice(0,4)}…${v.slice(-4)}`:null;
+  return {
+    ok:true,
+    provider:'SolarEdge ONE',
+    configured,
+    client_id_hint:hint(clientId),
+    client_id_len:clientId.length,
+    client_secret_present:!!clientSecret,
+    auth_status:configured?'credentials_ready':'awaiting_credentials',
+    redirect_uri:'https://energy-daddy-api.energyplantdaddy.workers.dev/api/solaredge/callback',
+    scopes:['SITE_DATA','DEVICE_DATA'],
+    message:configured?'SolarEdge ONE app credentials are stored. OAuth/site authorization is the next step.':'Store SOLAREDGE_CLIENT_ID and SOLAREDGE_CLIENT_SECRET in Cloudflare first.'
+  };
+}
+
 async function pollSolarEdge(env){
-  const siteId=(env.SOLAREDGE_SITE_ID||'').trim();
-  const apiKey=(env.SOLAREDGE_API_KEY||'').trim();
-  if(!siteId||!apiKey){
-    const state={status:'awaiting_credentials',live:false,message:'SolarEdge API key/site ID not configured. Build 1.5.1 will not guess or poll without them.'};
-    await setProviderState(env,'solaredge-site',state);
-    await providerRun(env,'SolarEdge','skipped',0,state.message);
-    return state;
-  }
-  try{
-    const endpoint=`https://monitoringapi.solaredge.com/site/${encodeURIComponent(siteId)}/overview?api_key=${encodeURIComponent(apiKey)}`;
-    const res=await fetch(endpoint,{headers:{accept:'application/json'}});
-    if(!res.ok) throw new Error(`SolarEdge HTTP ${res.status}`);
-    const body=await res.json();
-    const overview=body.overview||{};
-    const power=Number(overview.currentPower?.power);
-    if(!Number.isFinite(power)) throw new Error('SolarEdge response did not include currentPower.power');
-    const captured=nowIso();
-    const accepted=await ingestPoints([{source_id:'solaredge-site',metric:'solar_production',t:captured,energy_wh:power*0.25,power_avg_w:power,scope:'array_a',quality:'derived_live',metadata:{provider:'SolarEdge',provider_last_update:overview.lastUpdateTime||null,derivation:'current power × 15 minutes; use interval API later for settlement-grade history'}}],env);
-    await env.ENERGY_DB.prepare(`UPDATE sources SET status='live',last_seen_at=? WHERE id='solaredge-site'`).bind(captured).run();
-    const state={status:'live',live:true,last_seen_at:captured,power_w:power,points:accepted,message:'SolarEdge production poll succeeded.'};
-    await setProviderState(env,'solaredge-site',state); await providerRun(env,'SolarEdge','ok',accepted,'current production');
-    return state;
-  }catch(err){
-    const state={status:'error',live:false,message:String(err?.message||err)};
-    await setProviderState(env,'solaredge-site',state); await providerRun(env,'SolarEdge','error',0,state.message);
-    await recordEvent(env,{type:'provider_error',severity:'warn',title:'SolarEdge poll failed',explanation:state.message,evidence:{provider:'SolarEdge'},status:'open'});
-    return state;
-  }
+  const status=await solaredgeOneStatus(env);
+  const state=status.configured
+    ? {status:'oauth_setup_pending',live:false,message:'SolarEdge ONE credentials are stored; site authorization is not connected yet.'}
+    : {status:'awaiting_credentials',live:false,message:'SolarEdge ONE client credentials are not configured yet.'};
+  await setProviderState(env,'solaredge-site',state);
+  await providerRun(env,'SolarEdge','skipped',0,state.message);
+  return state;
 }
 
 async function runBrainCycle(env){
@@ -487,6 +485,7 @@ async function api(request,env){
     if(path==='/api/history') return json(await history(env,url),200,headers);
     if(path==='/api/events') return json(await events(env,url),200,headers);
     if(path==='/api/enphase/status') return json(await enphaseStatus(env),200,headers);
+    if(path==='/api/solaredge/status') return json(await solaredgeOneStatus(env),200,headers);
     if(path==='/api/enphase/diagnostics'&&request.method==='POST'){const r=await enphaseDiagnostics(request,env);return json(r,r.status||200,headers);}
     if(path==='/api/enphase/telemetry-shape'&&request.method==='POST'){const r=await enphaseTelemetryShape(request,env);return json(r,r.status||200,headers);}
     if(path==='/api/enphase/reset'&&request.method==='POST'){const r=await resetEnphase(request,env);return json(r,r.status||200,headers);}

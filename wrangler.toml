@@ -22,7 +22,6 @@ id = "fd34603a791348e682a341c577352b25"
 [vars]
 APP_ENV = "production"
 ALLOWED_ORIGINS = ""
-SOLAREDGE_SITE_ID = ""
 ENPHASE_SYSTEM_ID = "5484185"
 
 [triggers]
