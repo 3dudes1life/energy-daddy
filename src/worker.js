@@ -25,7 +25,7 @@ async function health(env){
   let d1=false, kv=false;
   try{ await env.ENERGY_DB.prepare('SELECT 1 AS ok').first(); d1=true; }catch{}
   try{ await env.ENERGY_STATE.put('health:last', nowIso(), {expirationTtl:3600}); kv=true; }catch{}
-  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.4', d1, kv, time:nowIso()};
+  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.5', d1, kv, time:nowIso()};
 }
 async function latest(env){
   const raw=await env.ENERGY_STATE.get('latest:site','json');
@@ -62,7 +62,7 @@ async function live(env){
   `).all()).results||[];
   const src=await sources(env);
   const cron=await env.ENERGY_STATE.get('cron:last');
-  return {ok:true,version:'1.7.4',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
+  return {ok:true,version:'1.7.5',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
 }
 async function events(env,url){
   const limit=Math.min(100,Math.max(1,Number(url.searchParams.get('limit')||20)));
@@ -274,6 +274,29 @@ async function enphaseManualExchange(request,env){
   }
 }
 
+
+async function enphaseCodeExchange(request,env){
+  if(!isAuthorized(request,env)) return json({error:'unauthorized'},401);
+  if(!enphaseConfigured(env)) return json({error:'enphase_not_configured',message:'Enphase credentials are not configured.'},503);
+  let code='';
+  try{
+    const ct=request.headers.get('content-type')||'';
+    if(ct.includes('application/json')) code=String((await request.json()).code||'').trim();
+    else { const form=await request.formData(); code=String(form.get('code')||'').trim(); }
+  }catch{}
+  if(!code) return json({error:'missing_code',message:'Paste the Enphase authorization code.'},400);
+  try{
+    const token=await exchangeEnphaseCode(env,code,ENPHASE_DEFAULT_REDIRECT);
+    const system=await discoverEnphaseSystem(env,token);
+    const poll=await pollEnphase(env,{force:true});
+    await recordEvent(env,{type:'provider_connected',severity:'info',title:'Enphase connected',explanation:`Energy Daddy authorized Enphase system ${system.system_id}.`,evidence:{provider:'Enphase',system_id:system.system_id,method:'manual_code'},status:'closed'});
+    return json({ok:true,provider:'Enphase',system_id:system.system_id,status:'connected',poll});
+  }catch(e){
+    await setProviderState(env,'enphase-site',{status:'auth_error',live:false,message:String(e?.message||e)});
+    return json({error:'enphase_exchange_failed',message:String(e?.message||e)},500);
+  }
+}
+
 async function pollSolarEdge(env){
   const siteId=(env.SOLAREDGE_SITE_ID||'').trim();
   const apiKey=(env.SOLAREDGE_API_KEY||'').trim();
@@ -331,6 +354,7 @@ async function api(request,env){
     if(path==='/api/enphase/connect') return enphaseConnect(request,env);
     if(path==='/api/enphase/connect/manual') return enphaseManualStart(env);
     if(path==='/api/enphase/manual/exchange'&&request.method==='POST') return enphaseManualExchange(request,env);
+    if(path==='/api/enphase/manual/code'&&request.method==='POST') return enphaseCodeExchange(request,env);
     if(path==='/api/enphase/callback') return enphaseCallback(request,env);
     if(path==='/api/enphase/poll'&&request.method==='POST'){ if(!isAuthorized(request,env)) return json({error:'unauthorized'},401,headers); return json(await pollEnphase(env,{force:true}),200,headers); }
     if(path==='/api/ingest'&&request.method==='POST'){const r=await ingest(request,env);return json(r,r.status||200,headers)}

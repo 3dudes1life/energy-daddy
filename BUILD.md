@@ -1,4 +1,4 @@
-# Energy Daddy Build 1.7.4 — Enphase Manual Lock
+# Energy Daddy Build 1.7.5 — Enphase Manual Lock
 
 - Dashboard Connect Enphase button now points to `/api/enphase/connect/manual`.
 - `/api/enphase/connect` now redirects internally to the manual bridge instead of Enphase directly.
