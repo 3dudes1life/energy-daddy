@@ -25,7 +25,7 @@ async function health(env){
   let d1=false, kv=false;
   try{ await env.ENERGY_DB.prepare('SELECT 1 AS ok').first(); d1=true; }catch{}
   try{ await env.ENERGY_STATE.put('health:last', nowIso(), {expirationTtl:3600}); kv=true; }catch{}
-  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.3', d1, kv, time:nowIso()};
+  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.4', d1, kv, time:nowIso()};
 }
 async function latest(env){
   const raw=await env.ENERGY_STATE.get('latest:site','json');
@@ -62,7 +62,7 @@ async function live(env){
   `).all()).results||[];
   const src=await sources(env);
   const cron=await env.ENERGY_STATE.get('cron:last');
-  return {ok:true,version:'1.7.3',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
+  return {ok:true,version:'1.7.4',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
 }
 async function events(env,url){
   const limit=Math.min(100,Math.max(1,Number(url.searchParams.get('limit')||20)));
@@ -184,7 +184,7 @@ async function pollEnphase(env,{force=false}={}){
   try{ token=await validEnphaseToken(env); }catch(err){
     const state={status:'auth_error',live:false,message:String(err?.message||err)};await setProviderState(env,'enphase-site',state);return state;
   }
-  if(!token){ const state={status:'awaiting_authorization',live:false,message:'Credentials are loaded. Open /api/enphase/connect once to authorize this home.'};await setProviderState(env,'enphase-site',state);return state; }
+  if(!token){ const state={status:'awaiting_authorization',live:false,message:'Credentials are loaded. Open /api/enphase/connect/manual once to authorize this home.'};await setProviderState(env,'enphase-site',state);return state; }
   let system=await env.ENERGY_STATE.get(ENPHASE_SYSTEM_KEY,'json');
   try{
     if(!system) system=await discoverEnphaseSystem(env,token);
@@ -211,13 +211,13 @@ async function pollEnphase(env,{force=false}={}){
 }
 async function enphaseStatus(env){
   const token=await getEnphaseToken(env),system=await env.ENERGY_STATE.get(ENPHASE_SYSTEM_KEY,'json'),runtime=await env.ENERGY_STATE.get('provider:enphase-site','json');
-  return {configured:enphaseConfigured(env),authorized:Boolean(token?.refresh_token),token_expires_at:token?.expires_at||null,system:system||null,runtime:runtime||null,connect_url:'/api/enphase/connect'};
+  return {configured:enphaseConfigured(env),authorized:Boolean(token?.refresh_token),token_expires_at:token?.expires_at||null,system:system||null,runtime:runtime||null,connect_url:'/api/enphase/connect/manual'};
 }
 async function enphaseConnect(request,env){
-  if(!enphaseConfigured(env)) return json({error:'enphase_not_configured',message:'Set ENPHASE_API_KEY, ENPHASE_CLIENT_ID and ENPHASE_CLIENT_SECRET first.'},503);
-  const state=crypto.randomUUID(); await env.ENERGY_STATE.put(`${ENPHASE_OAUTH_STATE_PREFIX}${state}`,nowIso(),{expirationTtl:600});
-  const u=new URL('https://api.enphaseenergy.com/oauth/authorize');u.searchParams.set('response_type','code');u.searchParams.set('client_id',env.ENPHASE_CLIENT_ID);u.searchParams.set('redirect_uri',ENPHASE_REDIRECT);u.searchParams.set('state',state);
-  return Response.redirect(u.toString(),302);
+  // 1.7.4: always route through the manual bridge. Enphase's oauth_login endpoint
+  // has returned 406/blank-browser behavior in this homeowner flow, so the old
+  // automatic callback path is intentionally disabled rather than retried.
+  return Response.redirect('https://energy-daddy-api.energyplantdaddy.workers.dev/api/enphase/connect/manual',302);
 }
 async function enphaseCallback(request,env){
   const u=new URL(request.url),err=u.searchParams.get('error');
@@ -246,7 +246,7 @@ async function enphaseManualStart(env){
   u.searchParams.set('client_id',env.ENPHASE_CLIENT_ID);
   u.searchParams.set('redirect_uri',ENPHASE_DEFAULT_REDIRECT);
   u.searchParams.set('state',state);
-  const page=`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Enphase</title><style>body{font-family:system-ui;background:#07131f;color:#eef7ff;max-width:760px;margin:0 auto;padding:28px}a,button{color:#07131f;background:#84f5b5;padding:12px 16px;border-radius:12px;text-decoration:none;border:0;font-weight:700}.card{background:#102232;padding:20px;border-radius:18px;margin:16px 0}input{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #446078;background:#07131f;color:#fff}code{word-break:break-all}</style></head><body><h1>Connect Enphase</h1><div class="card"><p>Step 1: open Enphase authorization using its documented default redirect.</p><p><a href="${htmlEscape(u.toString())}" target="_blank" rel="noopener">Open Enphase authorization</a></p><p>If Enphase approves, its final page/URL will contain <code>code=...</code> and <code>state=...</code>.</p></div><div class="card"><p>Step 2: paste the <strong>entire final Enphase URL</strong> below. Energy Daddy will validate the state and exchange the code server-side.</p><form method="post" action="/api/enphase/manual/exchange"><input type="url" name="callback_url" required placeholder="https://api.enphaseenergy.com/oauth/redirect_uri?code=...&state=..."><p><button type="submit">Finish Enphase connection</button></p></form></div><p><a href="/">Back to Energy Daddy</a></p></body></html>`;
+  const page=`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Enphase</title><style>body{font-family:system-ui;background:#07131f;color:#eef7ff;max-width:760px;margin:0 auto;padding:28px}a,button{color:#07131f;background:#84f5b5;padding:12px 16px;border-radius:12px;text-decoration:none;border:0;font-weight:700}.card{background:#102232;padding:20px;border-radius:18px;margin:16px 0}input{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #446078;background:#07131f;color:#fff}code{word-break:break-all}</style></head><body><h1>Connect Enphase</h1><div class="card"><p>Step 1: open Enphase authorization using its documented default redirect.</p><p><a href="${htmlEscape(u.toString())}" >Open Enphase authorization</a></p><p>This opens in the <strong>same tab</strong> — no popup is required. If Enphase approves, its final page/URL will contain <code>code=...</code> and <code>state=...</code>.</p><p><small>If the button is blocked, copy this authorization URL into a normal browser tab:</small></p><p><code>${htmlEscape(u.toString())}</code></p></div><div class="card"><p>Step 2: paste the <strong>entire final Enphase URL</strong> below. Energy Daddy will validate the state and exchange the code server-side.</p><form method="post" action="/api/enphase/manual/exchange"><input type="url" name="callback_url" required placeholder="https://api.enphaseenergy.com/oauth/redirect_uri?code=...&state=..."><p><button type="submit">Finish Enphase connection</button></p></form></div><p><a href="/">Back to Energy Daddy</a></p></body></html>`;
   return new Response(page,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store'}});
 }
 async function enphaseManualExchange(request,env){

@@ -1,3 +1,7 @@
+## Build 1.7.4 — Enphase Manual Lock
+
+This build removes the browser popup/new-tab dependency from Enphase authorization and makes the manual bridge the only public connection path.
+
 # Energy Daddy 1.7.3 — Enphase Superfix
 
 This build is the corrected deployment package for the Enphase auth rescue. It restores absolute asset paths and forces a fresh service-worker cache so Safari/PWA cannot regress to unstyled HTML.

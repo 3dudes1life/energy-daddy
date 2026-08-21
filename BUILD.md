@@ -1,11 +1,7 @@
-# Energy Daddy Build 1.7.3 — Enphase Superfix
+# Energy Daddy Build 1.7.4 — Enphase Manual Lock
 
-Fixes the frontend regression from 1.7.2 and keeps the Enphase manual OAuth rescue path.
-
-- All frontend assets now use absolute root paths.
-- Service worker cache bumped to 1.7.3 and uses absolute paths.
-- API routes are never intercepted by the service worker.
-- Manual Enphase OAuth route remains at `/api/enphase/connect/manual`.
-- Enphase system ID remains configured as `5484185`.
-- No D1 migration required.
-- Local Energy Daddy ports remain 5050/5051; Plant Daddy 8000-series remains reserved.
+- Dashboard Connect Enphase button now points to `/api/enphase/connect/manual`.
+- `/api/enphase/connect` now redirects internally to the manual bridge instead of Enphase directly.
+- Manual authorization opens in the same tab; no popup/new-window behavior required.
+- Manual page also shows the generated Enphase authorization URL as a copy/paste fallback.
+- No D1 migration. Existing Cloudflare secrets, D1, KV, and cron are reused.
