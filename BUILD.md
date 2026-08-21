@@ -1,4 +1,4 @@
-# Energy Daddy Build 1.7.1 — Daily Coach
+# Energy Daddy Build 1.7.2 — Daily Coach
 
 ## Goal
 Make Energy Daddy feel alive before live provider credentials arrive. The coach uses deterministic household evidence to answer: what matters now, when should flexible loads run, what window should be protected, and why.
@@ -27,3 +27,7 @@ No schema change. Deploy over the existing Worker/D1/KV stack.
 - `/api/enphase/poll` is an authenticated manual poll endpoint.
 - Cron polls Enphase at most once per ~hour to stay comfortably under the free Watt plan limit.
 - Latest PV and consumption power are stored as provider-latest evidence; settlement-grade interval backfill remains a later reconciliation step.
+
+
+## Enphase auth rescue
+Build 1.7.2 adds a documented default-redirect manual OAuth fallback at `/api/enphase/connect/manual` and pins the known homeowner system ID `5484185` to avoid unnecessary discovery calls. The normal callback flow remains available.

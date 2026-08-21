@@ -1,6 +1,6 @@
-# Energy Daddy by DCW Grows — Build 1.7.1 Daily Coach
+# Energy Daddy by DCW Grows — Build 1.7.2 Daily Coach
 
-Build 1.7.1 adds a deterministic Daily Coach on top of the 1.6.1 mobile rescue. No provider credentials are required for the coach to work: it ranks actions from the loaded SDG&E, Tesla, Emporia, SolarEdge evidence plus the configured EV-TOU-5 timing model.
+Build 1.7.2 adds a deterministic Daily Coach on top of the 1.6.1 mobile rescue. No provider credentials are required for the coach to work: it ranks actions from the loaded SDG&E, Tesla, Emporia, SolarEdge evidence plus the configured EV-TOU-5 timing model.
 
 ## What is new
 - Energy Score derived from rate timing, observed self-supply, data agreement, and learning confidence.
@@ -18,7 +18,7 @@ npm install
 npx wrangler deploy
 ```
 
-No new D1 migration is required for 1.7.1.
+No new D1 migration is required for 1.7.2.
 
 ## Local ports
 - UI: 5050
@@ -34,3 +34,7 @@ No new D1 migration is required for 1.7.1.
 - `/api/enphase/poll` is an authenticated manual poll endpoint.
 - Cron polls Enphase at most once per ~hour to stay comfortably under the free Watt plan limit.
 - Latest PV and consumption power are stored as provider-latest evidence; settlement-grade interval backfill remains a later reconciliation step.
+
+
+## Enphase auth rescue
+Build 1.7.2 adds a documented default-redirect manual OAuth fallback at `/api/enphase/connect/manual` and pins the known homeowner system ID `5484185` to avoid unnecessary discovery calls. The normal callback flow remains available.

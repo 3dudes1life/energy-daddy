@@ -25,7 +25,7 @@ async function health(env){
   let d1=false, kv=false;
   try{ await env.ENERGY_DB.prepare('SELECT 1 AS ok').first(); d1=true; }catch{}
   try{ await env.ENERGY_STATE.put('health:last', nowIso(), {expirationTtl:3600}); kv=true; }catch{}
-  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.1', d1, kv, time:nowIso()};
+  return {ok:d1&&kv, service:'energy-daddy-api', version:'1.7.2', d1, kv, time:nowIso()};
 }
 async function latest(env){
   const raw=await env.ENERGY_STATE.get('latest:site','json');
@@ -62,7 +62,7 @@ async function live(env){
   `).all()).results||[];
   const src=await sources(env);
   const cron=await env.ENERGY_STATE.get('cron:last');
-  return {ok:true,version:'1.7.1',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
+  return {ok:true,version:'1.7.2',generated_at:nowIso(),cron_last:cron||null,sources:src,latest:latestRows.map(r=>({...r,metadata:r.metadata_json?JSON.parse(r.metadata_json):{}}))};
 }
 async function events(env,url){
   const limit=Math.min(100,Math.max(1,Number(url.searchParams.get('limit')||20)));
@@ -106,6 +106,8 @@ const ENPHASE_SYSTEM_KEY='enphase:system';
 const ENPHASE_LAST_POLL_KEY='enphase:last_poll';
 const ENPHASE_OAUTH_STATE_PREFIX='enphase:oauth_state:';
 const ENPHASE_REDIRECT='https://energy-daddy-api.energyplantdaddy.workers.dev/api/enphase/callback';
+const ENPHASE_DEFAULT_REDIRECT='https://api.enphaseenergy.com/oauth/redirect_uri';
+const ENPHASE_MANUAL_STATE_PREFIX='enphase:manual_state:';
 
 function base64Basic(clientId,clientSecret){
   return `Basic ${btoa(`${clientId}:${clientSecret}`)}`;
@@ -121,8 +123,8 @@ async function storeEnphaseToken(env,token){
   await env.ENERGY_STATE.put(ENPHASE_TOKEN_KEY,JSON.stringify(record));
   return record;
 }
-async function exchangeEnphaseCode(env,code){
-  const q=new URLSearchParams({grant_type:'authorization_code',redirect_uri:ENPHASE_REDIRECT,code});
+async function exchangeEnphaseCode(env,code,redirectUri=ENPHASE_REDIRECT){
+  const q=new URLSearchParams({grant_type:'authorization_code',redirect_uri:redirectUri,code});
   const res=await fetch(`https://api.enphaseenergy.com/oauth/token?${q.toString()}`,{method:'POST',headers:{Authorization:base64Basic(env.ENPHASE_CLIENT_ID,env.ENPHASE_CLIENT_SECRET),Accept:'application/json'}});
   const body=await res.json().catch(()=>({}));
   if(!res.ok||!body.access_token) throw new Error(`Enphase token exchange failed (${res.status}): ${body.message||body.error||'unknown error'}`);
@@ -151,11 +153,18 @@ async function enphaseFetch(env,path,token){
   return body;
 }
 async function discoverEnphaseSystem(env,token){
+  const configured=(env.ENPHASE_SYSTEM_ID||'').trim();
+  if(configured){
+    const record={system_id:configured,name:'Configured Enphase System',timezone:null,status:'configured',system_count:1,discovered_at:nowIso(),source:'configured'};
+    await env.ENERGY_STATE.put(ENPHASE_SYSTEM_KEY,JSON.stringify(record));
+    await env.ENERGY_DB.prepare(`UPDATE sources SET status='connected',last_seen_at=? WHERE id='enphase-site'`).bind(nowIso()).run();
+    return record;
+  }
   const body=await enphaseFetch(env,'/api/v4/systems',token);
   const systems=body.systems||body.items||[];
   if(!Array.isArray(systems)||!systems.length) throw new Error('Enphase authorized successfully, but no systems were returned.');
   const chosen=systems[0];
-  const record={system_id:String(chosen.system_id),name:chosen.name||chosen.public_name||'Enphase System',timezone:chosen.timezone||null,status:chosen.status||null,system_count:systems.length,discovered_at:nowIso()};
+  const record={system_id:String(chosen.system_id),name:chosen.name||chosen.public_name||'Enphase System',timezone:chosen.timezone||null,status:chosen.status||null,system_count:systems.length,discovered_at:nowIso(),source:'discovered'};
   await env.ENERGY_STATE.put(ENPHASE_SYSTEM_KEY,JSON.stringify(record));
   await env.ENERGY_DB.prepare(`UPDATE sources SET status='connected',last_seen_at=? WHERE id='enphase-site'`).bind(nowIso()).run();
   return record;
@@ -226,6 +235,45 @@ async function enphaseCallback(request,env){
   }
 }
 
+
+function htmlEscape(v=''){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function enphaseManualStart(env){
+  if(!enphaseConfigured(env)) return json({error:'enphase_not_configured',message:'Set Enphase credentials first.'},503);
+  const state=crypto.randomUUID();
+  await env.ENERGY_STATE.put(`${ENPHASE_MANUAL_STATE_PREFIX}${state}`,nowIso(),{expirationTtl:1800});
+  const u=new URL('https://api.enphaseenergy.com/oauth/authorize');
+  u.searchParams.set('response_type','code');
+  u.searchParams.set('client_id',env.ENPHASE_CLIENT_ID);
+  u.searchParams.set('redirect_uri',ENPHASE_DEFAULT_REDIRECT);
+  u.searchParams.set('state',state);
+  const page=`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Enphase</title><style>body{font-family:system-ui;background:#07131f;color:#eef7ff;max-width:760px;margin:0 auto;padding:28px}a,button{color:#07131f;background:#84f5b5;padding:12px 16px;border-radius:12px;text-decoration:none;border:0;font-weight:700}.card{background:#102232;padding:20px;border-radius:18px;margin:16px 0}input{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #446078;background:#07131f;color:#fff}code{word-break:break-all}</style></head><body><h1>Connect Enphase</h1><div class="card"><p>Step 1: open Enphase authorization using its documented default redirect.</p><p><a href="${htmlEscape(u.toString())}" target="_blank" rel="noopener">Open Enphase authorization</a></p><p>If Enphase approves, its final page/URL will contain <code>code=...</code> and <code>state=...</code>.</p></div><div class="card"><p>Step 2: paste the <strong>entire final Enphase URL</strong> below. Energy Daddy will validate the state and exchange the code server-side.</p><form method="post" action="/api/enphase/manual/exchange"><input type="url" name="callback_url" required placeholder="https://api.enphaseenergy.com/oauth/redirect_uri?code=...&state=..."><p><button type="submit">Finish Enphase connection</button></p></form></div><p><a href="/">Back to Energy Daddy</a></p></body></html>`;
+  return new Response(page,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store'}});
+}
+async function enphaseManualExchange(request,env){
+  let callbackUrl='';
+  const ct=request.headers.get('content-type')||'';
+  if(ct.includes('application/json')) callbackUrl=(await request.json()).callback_url||'';
+  else { const form=await request.formData(); callbackUrl=String(form.get('callback_url')||''); }
+  let u; try{u=new URL(callbackUrl)}catch{return new Response('<h1>Invalid URL</h1><p>Paste the full Enphase redirect URL.</p>',{status:400,headers:{'content-type':'text/html; charset=utf-8'}})}
+  const code=u.searchParams.get('code'),state=u.searchParams.get('state'),err=u.searchParams.get('error');
+  if(err) return new Response(`<h1>Enphase declined access</h1><p>${htmlEscape(err)}</p>`,{status:400,headers:{'content-type':'text/html; charset=utf-8'}});
+  if(!code||!state) return new Response('<h1>Missing code or state</h1><p>The pasted Enphase URL must contain both.</p>',{status:400,headers:{'content-type':'text/html; charset=utf-8'}});
+  const stateKey=`${ENPHASE_MANUAL_STATE_PREFIX}${state}`;
+  const valid=await env.ENERGY_STATE.get(stateKey);
+  if(!valid) return new Response('<h1>Authorization state expired</h1><p>Start the manual connection again.</p>',{status:400,headers:{'content-type':'text/html; charset=utf-8'}});
+  await env.ENERGY_STATE.delete(stateKey);
+  try{
+    const token=await exchangeEnphaseCode(env,code,ENPHASE_DEFAULT_REDIRECT);
+    const system=await discoverEnphaseSystem(env,token);
+    const poll=await pollEnphase(env,{force:true});
+    await recordEvent(env,{type:'provider_connected',severity:'info',title:'Enphase connected',explanation:`Energy Daddy authorized Enphase system ${system.system_id}.`,evidence:{provider:'Enphase',system_id:system.system_id,method:'manual_default_redirect'},status:'closed'});
+    return new Response(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Enphase connected</title></head><body style="font-family:system-ui;padding:30px"><h1>Enphase connected ✅</h1><p>System ${htmlEscape(system.system_id)} is connected.</p><p>${htmlEscape(poll.message||'First poll completed.')}</p><p><a href="/">Open Energy Daddy</a></p></body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store'}});
+  }catch(e){
+    await setProviderState(env,'enphase-site',{status:'auth_error',live:false,message:String(e?.message||e)});
+    return new Response(`<h1>Enphase connection failed</h1><p>${htmlEscape(String(e?.message||e))}</p><p><a href="/api/enphase/connect/manual">Try again</a></p>`,{status:500,headers:{'content-type':'text/html; charset=utf-8'}});
+  }
+}
+
 async function pollSolarEdge(env){
   const siteId=(env.SOLAREDGE_SITE_ID||'').trim();
   const apiKey=(env.SOLAREDGE_API_KEY||'').trim();
@@ -281,6 +329,8 @@ async function api(request,env){
     if(path==='/api/events') return json(await events(env,url),200,headers);
     if(path==='/api/enphase/status') return json(await enphaseStatus(env),200,headers);
     if(path==='/api/enphase/connect') return enphaseConnect(request,env);
+    if(path==='/api/enphase/connect/manual') return enphaseManualStart(env);
+    if(path==='/api/enphase/manual/exchange'&&request.method==='POST') return enphaseManualExchange(request,env);
     if(path==='/api/enphase/callback') return enphaseCallback(request,env);
     if(path==='/api/enphase/poll'&&request.method==='POST'){ if(!isAuthorized(request,env)) return json({error:'unauthorized'},401,headers); return json(await pollEnphase(env,{force:true}),200,headers); }
     if(path==='/api/ingest'&&request.method==='POST'){const r=await ingest(request,env);return json(r,r.status||200,headers)}
